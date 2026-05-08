@@ -1,23 +1,52 @@
-import { createRouter, createWebHistory } from 'vue-router'
-import HomeView from '../views/HomeView.vue'
+import { createRouter, createWebHistory } from "vue-router";
+import { useAuth } from "@composables/useAuth";
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
-      path: '/',
-      name: 'home',
-      component: HomeView,
+      path: "/",
+      name: "selection",
+      component: () => import("@views/CheckinSelection.vue"),
     },
     {
-      path: '/about',
-      name: 'about',
-      // route level code-splitting
-      // this generates a separate chunk (About.[hash].js) for this route
-      // which is lazy-loaded when the route is visited.
-      component: () => import('../views/AboutView.vue'),
+      path: "/operator",
+      name: "operator",
+      component: () => import("@views/OperatorSetup.vue"),
+    },
+    {
+      path: "/redeem",
+      name: "redeem",
+      component: () => import("@views/RedeemView.vue"),
+    },
+    {
+      path: "/gadgets",
+      name: "gadgets",
+      component: () => import("@views/GadgetView.vue"),
+    },
+    {
+      path: "/login",
+      name: "login",
+      component: () => import("@views/LoginView.vue"),
+    },
+    {
+      path: "/legend",
+      name: "legend",
+      component: () => import("@views/LegendView.vue"),
     },
   ],
-})
+});
 
-export default router
+router.beforeEach((to) => {
+  const { isLoggedIn } = useAuth();
+  
+  if (to.name !== "login" && !isLoggedIn.value) {
+    return { name: "login" };
+  }
+  
+  if (to.name === "login" && isLoggedIn.value) {
+    return { name: "selection" };
+  }
+});
+
+export default router;

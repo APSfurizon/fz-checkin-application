@@ -7,269 +7,133 @@ const path = require('path');
 const app = express();
 const port = 3000;
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 
-// Inizializza il database SQLite
+// GLOBAL LOGGER - Vedrai ogni singola richiesta qui
+app.use((req, res, next) => {
+    console.log(`[${new Date().toLocaleTimeString()}] ${req.method} ${req.originalUrl}`);
+    next();
+});
+
 const dbPath = path.join(__dirname, 'database.sqlite');
 const db = new Database(dbPath, { verbose: console.log });
-
-// Inizializza la tabella se non esiste
 const schemaPath = path.join(__dirname, 'schema.sql');
 const schema = fs.readFileSync(schemaPath, 'utf8');
 db.exec(schema);
 
-console.log('Database SQLite inizializzato con successo.');
-
-
-/**
- * PROXY PER FURPANEL (Bypass CORS & Forbidden Headers)
- */
+// Migration: Aggiungi propicUrl se manca
+try {
+    const tableInfo = db.prepare("PRAGMA table_info(checkins)").all();
+    if (!tableInfo.some(col => col.name === 'propicUrl')) {
+        console.log('Migrazione: aggiunta colonna propicUrl...');
+        db.prepare("ALTER TABLE checkins ADD COLUMN propicUrl TEXT NULL").run();
+    }
+} catch (e) {
+    console.error("Migration error:", e.message);
+}
 
 const BASE_URL = "https://fzbe.furizon.net/api/v1/";
 
 async function fzGet(url, reqHeaders) {
-    try {
-        const headers = {
-            ...reqHeaders,
-            'Referer': "http://furpanel.furizon.net/",
-            'Origin': "https://furpanel.furizon.net",
-        };
-        delete headers.host;
-        delete headers['accept-encoding'];
-        delete headers['content-length'];
-        delete headers['connection'];
-
-        console.log("GET " + BASE_URL + url + "\n" + JSON.stringify(headers));
-
-        const response = await fetch(BASE_URL + url, {
-            method: 'GET',
-            headers
-        });
-
-        const contentType = response.headers.get('content-type');
-        let data;
-        
-        if (contentType && contentType.includes('application/json')) {
-            data = await response.json();
-        } else {
-            data = await response.text();
-        }
-
-        console.log("HTTP/1.0 " + response.status + "\n" + JSON.stringify(Object.fromEntries(response.headers.entries())) + "\n" + JSON.stringify(data));
-        return {data, headers: response.headers, status: response.status};
-    } catch (error) {
-        console.error('--- Proxy Critical Error ---');
-        console.error(error);
-        return undefined;
-    }
+    const headers = {
+        'Authorization': reqHeaders['authorization'],
+        'x-operator-id': reqHeaders['x-operator-id'],
+        'Referer': "http://furpanel.furizon.net/",
+        'Origin': "https://furpanel.furizon.net"
+    };
+    const response = await fetch(BASE_URL + url, { method: 'GET', headers });
+    const data = await response.json().catch(() => response.text());
+    return {data, headers: response.headers, status: response.status};
 }
 
 async function fzPost(url, bodyObj, reqHeaders) {
-    try {
-        const headers = {
-            ...reqHeaders,
-            'Referer': "http://furpanel.furizon.net/",
-            'Origin': "https://furpanel.furizon.net",
-        };
-        delete headers.host;
-        delete headers['accept-encoding'];
-        delete headers['content-length'];
-        delete headers['connection'];
-        delete headers['content-type'];
-        headers["content-type"] = "application/json";
-
-        let bodyStr = JSON.stringify(bodyObj);
-
-        console.log("POST " + BASE_URL + url + "\n" + JSON.stringify(headers) + "\n" + bodyStr);
-        const response = await fetch(BASE_URL + url, {
-            method: 'POST',
-            headers,
-            body: bodyStr
-        });
-
-        const contentType = response.headers.get('content-type');
-        let data;
-        
-        if (contentType && contentType.includes('application/json')) {
-            data = await response.json();
-        } else {
-            data = await response.text();
-        }
-
-        console.log("HTTP/1.0 " + response.status + "\n" + JSON.stringify(Object.fromEntries(response.headers.entries())) + "\n" + JSON.stringify(data));
-        return {data: data, headers: response.headers, status: response.status};
-    } catch (error) {
-        console.error('--- Proxy Critical Error ---');
-        console.error(error);
-        return undefined;
-    }
-}
-
-async function fzProxyResponse(fzResponse, res) {
-    res.status(fzResponse.status);
-    fzResponse.headers.forEach((value, key) => {
-        const lowerKey = key.toLowerCase();
-        if (!['content-encoding', 'transfer-encoding', 'content-length', 'access-control-allow-origin', 'content-type'].includes(lowerKey)) {
-            res.setHeader(key, value);
-        }
+    const headers = {
+        'Authorization': reqHeaders['authorization'],
+        'x-operator-id': reqHeaders['x-operator-id'],
+        'Content-Type': 'application/json',
+        'Referer': "http://furpanel.furizon.net/",
+        'Origin': "https://furpanel.furizon.net"
+    };
+    const response = await fetch(BASE_URL + url, { 
+        method: 'POST', 
+        headers, 
+        body: JSON.stringify(bodyObj) 
     });
-    res.send(fzResponse.data);
+    const data = await response.json().catch(() => response.text());
+    return {data, headers: response.headers, status: response.status};
 }
 
 async function checkUserPermission(headers) {
-    const res = await fzGet("users/display/me", headers)
-    if (res == null || res.data?.permissions == undefined) {
-        return false;
-    }
-    return res.data?.permissions.includes("CAN_PERFORM_CHECKINS");
+    const res = await fzGet("users/display/me", headers);
+    return res?.data?.permissions?.includes("CAN_PERFORM_CHECKINS") || false;
 }
 
-async function checkUserPermissionAndSetResponse(headers, res) {
-    const hasPermission = await checkUserPermission(headers);
-    if (!hasPermission) {
-        res.status(400).json({ success: false, message: 'Invalid permission'});
-    }
-    return hasPermission;
-}
+const checkAuth = async (req, res, next) => {
+    if (await checkUserPermission(req.headers)) return next();
+    res.status(401).json({ errors: [{ message: 'Unauthorized', code: 'UNAUTHORIZED' }] });
+};
 
-function setEmptyResponse(res) {
-    res.status(500).json({ success: false, message: 'Empty response from fzbackend' });
-}
+// --- ROTTE API ---
+const api = express.Router();
 
+api.get('/test', (req, res) => res.send('OK - Server is working'));
 
-
-
-// ==========================================
-// ROTTE DEL SERVER
-// ==========================================
-
-/**
- * 1. Recupera i check-in con gadget non ancora consegnati (gadgetCollectedAt IS NULL), ordinati dal più vecchio al più nuovo.
- */
-app.get('/api/checkins/pending-gadgets', async (req, res) => {
-    try {
-        if (!await checkUserPermissionAndSetResponse(req.headers, res)) {
-            return;
-        }
-        const stmt = db.prepare(`
-            SELECT * FROM checkins 
-            WHERE gadgetCollectedAt IS NULL 
-            ORDER BY createdAt ASC
-        `);
-        const pendingCheckins = stmt.all();
-        res.json({ success: true, data: pendingCheckins });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ success: false, message: 'Errore nel recupero dei dati.' });
-    }
+api.get('/checkin/pending-gadgets', (req, res) => {
+    console.log('[GET] pending-gadgets called');
+    const data = db.prepare('SELECT * FROM checkins ORDER BY createdAt ASC').all();
+    res.json({ success: true, data });
 });
 
-/**
- * 2. Segna un ordine gadget come "servito" impostando gadgetCollectedAt = datetime('now')
- */
-app.put('/api/checkins/:id/serve-gadget', async (req, res) => {
-    try {
-        // MEMO: questo fa il controllo per vedere se l'utente ha i permessi
-        if (!await checkUserPermissionAndSetResponse(req.headers, res)) {
-            return;
-        }
-        const { id } = req.params;
-        const stmt = db.prepare(`
-            UPDATE checkins 
-            SET gadgetCollectedAt = datetime('now') 
-            WHERE id = ?
-        `);
-        const result = stmt.run(id);
-        
-        if (result.changes > 0) {
-            res.json({ success: true, message: 'Gadget segnato come consegnato.' });
-        } else {
-            res.status(404).json({ success: false, message: 'Check-in non trovato.' });
-        }
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ success: false, message: "Errore durante l'aggiornamento." });
-    }
+api.put('/checkin/:id/toggle-gadget', checkAuth, (req, res) => {
+    const { id } = req.params;
+    const checkin = db.prepare('SELECT gadgetCollectedAt FROM checkins WHERE id = ?').get(id);
+    if (!checkin) return res.status(404).json({ errors: [{ message: 'Not found' }] });
+    const newValue = checkin.gadgetCollectedAt ? null : new Date().toISOString().replace('T', ' ').split('.')[0];
+    db.prepare('UPDATE checkins SET gadgetCollectedAt = ? WHERE id = ?').run(newValue, id);
+    res.json({ success: true, collectedAt: newValue });
 });
 
-/**
- * Endpoint extra per inserire un check-in di test
- */
-app.post('/api/checkins', (req, res) => {
-    try {
-        //TODO prendere dati da backend e restituirli indietro al front
-        const {
-            checkinId, checkinNonce, checkinListId, 
-            fursonaName, firstName, lastName, 
-            orderSerial, orderCode, gadgets, 
-            shirtSize, portaBadgeType, lanyardType, 
-            hasFursuitBadge, shouldPrintApsJoinModule
-        } = req.body;
-
-        const stmt = db.prepare(`
-            INSERT INTO checkins (
-                checkinId, checkinNonce, checkinListId, 
-                fursonaName, firstName, lastName, 
-                orderSerial, orderCode, gadgets, 
-                shirtSize, portaBadgeType, lanyardType, 
-                hasFursuitBadge, shouldPrintApsJoinModule
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `);
-        
-        const result = stmt.run(
-            checkinId, checkinNonce, checkinListId, 
-            fursonaName, firstName, lastName, 
-            orderSerial, orderCode, JSON.stringify(gadgets), 
-            shirtSize, portaBadgeType, lanyardType, 
-            hasFursuitBadge, shouldPrintApsJoinModule
-        );
-        
-        res.json({ success: true, insertedId: result.lastInsertRowid });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ success: false, message: 'Errore durante l\'inserimento.' });
-    }
+api.put('/checkin/:id/serve-gadget', checkAuth, (req, res) => {
+    db.prepare('UPDATE checkins SET gadgetCollectedAt = datetime("now") WHERE id = ?').run(req.params.id);
+    res.json({ success: true });
 });
 
-app.get('/api/proxy/checkin/lists', async (req, res) => {
-    const fzRes = fzGet("checkin/lists", headers);
-    fzProxyResponse(fzRes, res);
+api.get('/checkin/lists', checkAuth, async (req, res) => {
+    const fzRes = await fzGet("checkin/lists", req.headers);
+    res.status(fzRes.status).json(fzRes.data);
 });
 
-//app.get('/api/proxy/checkin/search', async (req, res) => {
-//    const fzRes = fzGet("checkin/lists", headers);
-//    fzProxyResponse(fzRes, res);
-//});
-
-app.get('/api/proxy/authentication/me', async (req, res) => {
-    const fzRes = fzGet("users/display/me", headers);
-    fzProxyResponse(fzRes, res);
+api.get('/checkin/search', checkAuth, async (req, res) => {
+    const fzRes = await fzGet("checkin/search?" + new URLSearchParams(req.query).toString(), req.headers);
+    res.status(fzRes.status).json(fzRes.data);
 });
 
-app.post('/api/proxy/authentication/login', async (req, res) => {
-    let { headers } = req;
-    const fzRes = await fzPost("authentication/login", {
-        "email": req.body.email,
-        "password": req.body.password
-    }, headers)
-    if (fzRes == undefined) {
-        setEmptyResponse(res);
-        return;
+api.post('/checkin/redeem', checkAuth, async (req, res) => {
+    const fzRes = await fzPost("checkin/redeem", req.body, req.headers);
+    if (fzRes.status === 200 && fzRes.data?.status === 'ok') {
+        const d = fzRes.data;
+        db.prepare(`INSERT INTO checkins (checkinId, checkinNonce, checkinListId, fursonaName, firstName, lastName, orderSerial, orderCode, gadgets, shirtSize, portaBadgeType, lanyardType, hasFursuitBadge, shouldPrintApsJoinModule, propicUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(d.user?.userId, d.checkinNonce, req.body.checkinListIds[0], d.user?.fursonaName, d.firstName, d.lastName, d.orderSerial, d.orderCode, JSON.stringify(d.gadgets || []), d.shirtSize, d.portaBadgeType, d.lanyardType, d.hasFursuitBadge?1:0, d.shouldPrintApsJoinModule?1:0, d.user?.propic?.mediaUrl);
     }
-    if (fzRes.data?.accessToken == undefined) {
-        fzProxyResponse(fzRes, res);
-        return;
-    }
-    let token = fzRes.data?.accessToken;
-    headers["authorization"] = "Bearer " + token;
-    if (!await checkUserPermissionAndSetResponse(headers, res)) {
-        return;
-    }
-    res.status(200).json({token: token});
+    res.status(fzRes.status).json(fzRes.data);
+});
+
+api.post('/proxy/authentication/login', async (req, res) => {
+    const fzRes = await fzPost("authentication/login", req.body, req.headers);
+    if (fzRes.data?.accessToken) return res.json({ token: fzRes.data.accessToken });
+    res.status(fzRes.status).json(fzRes.data);
+});
+
+app.use('/api', api);
+
+// CATCH-ALL per i 404 - utile per vedere cosa sta sbagliando il frontend
+app.use((req, res) => {
+    console.error(`[404] Rotta non trovata: ${req.method} ${req.originalUrl}`);
+    res.status(404).send(`Cannot ${req.method} ${req.url}`);
 });
 
 app.listen(port, () => {
-    console.log(`Server in ascolto su http://localhost:${port}`);
+    console.log('==========================================');
+    console.log(` SERVER IN ASCOLTO SU http://localhost:${port}`);
+    console.log('==========================================');
 });
