@@ -3,7 +3,7 @@ import { computed, watch } from 'vue';
 import Swal from 'sweetalert2';
 import AppBadge from '../atoms/AppBadge.vue';
 import AppButton from '../atoms/AppButton.vue';
-import { getOperatorId, cancelCheckin } from '@/services/checkinApi';
+import { getOperatorId, cancelCheckin, getApsJoinModule } from '@/services/checkinApi';
 
 interface Props {
   userData: any;
@@ -58,26 +58,12 @@ const goToApsModule = async () => {
     return;
   }
 
-  const url = `/api/membership/aps-join-module?id=${encodeURIComponent(String(userId))}`;
+  const url = `membership/aps-join-module?id=${encodeURIComponent(String(userId))}`;
 
   try {
-    const response = await fetch(url, {
-      method: 'GET',
-      credentials: 'include',
-      headers: {
-        Accept: 'text/html'
-      }
-    });
+    const res = await getApsJoinModule(userId);
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    const html = await response.text();
-    const printStyle = '<style>@page { size: A5 portrait; margin: 8mm; } html, body { width: 148mm; min-height: 210mm; margin: 0; } @media print { html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }</style>';
-    const htmlWithA5 = html.includes('</head>')
-      ? html.replace('</head>', `${printStyle}</head>`)
-      : `${printStyle}${html}`;
+    const html = res;
 
     const iframe = document.createElement('iframe');
     iframe.style.position = 'fixed';
@@ -114,7 +100,7 @@ const goToApsModule = async () => {
     };
 
     frameDoc.open();
-    frameDoc.write(htmlWithA5);
+    frameDoc.write(html);
     frameDoc.close();
   } catch (e: any) {
     await Swal.fire({

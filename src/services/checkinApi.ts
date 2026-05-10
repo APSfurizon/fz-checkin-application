@@ -104,6 +104,10 @@ export async function getGadgetUpdates(lastId: number) {
     return response.data;
 }
 
+export async function getApsJoinModule(userId: number) {
+    const response = await furpanelApi.get("membership/aps-join-module", { params: { userId } });
+    return response.data;
+}
 
 
 export async function cancelCheckin(checkinNonce: string, reason: string) {

@@ -41,8 +41,14 @@ async function fzGet(url, reqHeaders) {
         'Origin': "https://furpanel.furizon.net"
     };
     const response = await fetch(BASE_URL + url, { method: 'GET', headers });
-    const data = await response.json().catch(() => response.text());
-    return {data, headers: response.headers, status: response.status};
+    const data = await response.text();
+    const respHeaders = response.headers;
+    if (respHeaders.get('content-type')?.includes('application/json')) {
+        try {
+            return { data: JSON.parse(data), headers: respHeaders, status: response.status };
+        } catch (e) {}
+    }
+    return {data, headers: respHeaders, status: response.status};
 }
 
 async function fzPost(url, bodyObj, reqHeaders) {
@@ -58,8 +64,14 @@ async function fzPost(url, bodyObj, reqHeaders) {
         headers, 
         body: JSON.stringify(bodyObj) 
     });
-    const data = await response.json().catch(() => response.text());
-    return {data, headers: response.headers, status: response.status};
+    const data = await response.text();
+    const respHeaders = response.headers;
+    if (respHeaders.get('content-type')?.includes('application/json')) {
+        try {
+            return { data: JSON.parse(data), headers: respHeaders, status: response.status };
+        } catch (e) {}
+    }
+    return {data, headers: respHeaders, status: response.status};
 }
 
 async function checkUserPermission(headers) {
