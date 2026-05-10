@@ -40,3 +40,7 @@ npm run dev
 ```sh
 npm run build
 ```
+
+
+cd backend
+node server.js
