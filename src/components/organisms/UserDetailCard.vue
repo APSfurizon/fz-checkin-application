@@ -120,6 +120,8 @@ const sponsorshipVariant = computed(() => {
   }
 });
 
+
+// LANYARD COLORS CONFIGURATION
 const getLanyardColor = (type: string) => {
   const t = type?.toUpperCase() || '';
   if (t.includes('MAIN') || t.includes('SECURITY')) return '#ff4757';
@@ -132,6 +134,7 @@ const getLanyardColor = (type: string) => {
   return '#a4b0be';
 };
 
+// PORTABADGE COLORS CONFIGURATION
 const getBadgeHolderColor = (type: string) => {
   const t = type?.toUpperCase() || '';
   if (t.includes('MAIN') || t.includes('SECURITY')) return '#ff4757';
@@ -206,7 +209,7 @@ if(status.toLowerCase() !== 'ok') {
         <div class="user-card__badges">
           <div class="badge-with-label">
             <span class="label">Sponsor type:</span>
-            <AppBadge :variant="sponsorshipVariant">{{ userData.user?.sponsorship || userData.sponsorship || 'NONE' }}</AppBadge>
+            <AppBadge :variant="sponsorshipVariant">{{ userData.sponsorNames?.en || userData.user?.sponsorship || userData.sponsorship || 'NONE' }}</AppBadge>
           </div>
           <AppBadge v-if="userData.user?.staffer || userData.staffer" variant="success">STAFF</AppBadge>
           <AppBadge v-if="userData.user?.dailyTicket || userData.dailyTicket" variant="info">DAILY</AppBadge>
@@ -339,7 +342,7 @@ if(status.toLowerCase() !== 'ok') {
               <div class="fursuit-info">
                 <div class="fursuit-header">
                   <span class="fursuit-name">{{ f.fursuit?.name }}</span>
-                  <span class="fursuit-id">#{{ f.fursuit?.fursuitId || (idx + 1) }}</span>
+                  <span class="fursuit-id">#{{ f.fursuit?.id || "-" }}</span>
                 </div>
                 <span class="fursuit-specie">{{ f.fursuit?.species || f.fursuit?.specie }}</span>
                 <div class="fursuit-badges">
@@ -361,7 +364,7 @@ if(status.toLowerCase() !== 'ok') {
               <strong>{{ userData.roomInfo.roomData?.roomTypeNames?.en || 'Accommodation' }}</strong>
               <div class="room-badges">
                 <AppBadge v-if="userData.roomInfo.userIsOwner" variant="primary">Owner</AppBadge>
-                <AppBadge :variant="userData.roomInfo.confirmed ? 'success' : 'warning'">
+                <AppBadge v-if="userData.roomInfo.confirmed" :variant="userData.roomInfo.confirmed ? 'success' : 'warning'">
                   {{ userData.roomInfo.confirmed ? 'Confirmed' : 'Pending' }}
                 </AppBadge>
               </div>
