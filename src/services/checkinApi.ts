@@ -99,6 +99,11 @@ export async function toggleGadget(checkinId: number) {
     return response.data;
 }
 
+export async function getGadgetUpdates(lastId: number) {
+    const response = await furpanelApi.get("checkin/updates", { params: { lastId } });
+    return response.data;
+}
+
 
 
 export async function cancelCheckin(checkinNonce: string, reason: string) {

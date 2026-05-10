@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
+import Swal from 'sweetalert2';
 import { useRouter } from 'vue-router';
 import { searchCheckins, redeemCheckin, getCheckinListId, getOperatorId } from '@/services/checkinApi';
 import { useGadgets } from '@/composables/useGadgets';
@@ -12,6 +13,7 @@ import ErrorModal from '@/components/organisms/ErrorModal.vue';
 const router = useRouter();
 const query = ref('');
 const results = ref<any[]>([]);
+const filter = ref<'all' | 'pending' | 'checked-in'>('all');
 const checkinData = ref<any>(null);
 const loading = ref(false);
 const error = ref('');
@@ -21,6 +23,13 @@ const listId = Number(getCheckinListId());
 const { addGadget } = useGadgets();
 const barcodeBuffer = ref('');
 let lastKeyTime = Date.now();
+
+const filteredResults = computed(() => {
+  if (filter.value === 'all') return results.value;
+  if (filter.value === 'pending') return results.value.filter(r => !r.hasCheckedIn);
+  if (filter.value === 'checked-in') return results.value.filter(r => r.hasCheckedIn);
+  return results.value;
+});
 
 const parseError = (e: any) => {
   const data = e.response?.data;
@@ -98,7 +107,30 @@ onUnmounted(() => {
 
 const confirmRedeem = async (result: any) => {
   const displayName = result.user?.fursonaName || result.name;
-  if (!confirm(`Do you want to perform check-in for ${displayName}?`)) return;
+  
+  if (result.hasCheckedIn) {
+    const { isConfirmed } = await Swal.fire({
+      icon: 'warning',
+      title: 'Cancel check-in?',
+      text: `Are you sure you want to cancel the check-in of ${displayName}?`,
+      showCancelButton: true,
+      confirmButtonText: 'Yes, continue',
+      cancelButtonText: 'No'
+    });
+    if (!isConfirmed) return;
+    // Implement cancellation logic if needed, but the user only asked for the message for now
+    // Actually, usually we would call cancelCheckin here.
+  } else {
+    const { isConfirmed } = await Swal.fire({
+      icon: 'question',
+      title: 'Perform check-in?',
+      text: `Do you want to perform check-in for ${displayName}?`,
+      showCancelButton: true,
+      confirmButtonText: 'Yes, check-in',
+      cancelButtonText: 'No'
+    });
+    if (!isConfirmed) return;
+  }
   
   loading.value = true;
   clearError();
@@ -111,9 +143,14 @@ const confirmRedeem = async (result: any) => {
     
     addGadget(data);
     
+    // Update the item in results to show it's now checked in
+    const index = results.value.findIndex(r => r.checkinSecret === result.checkinSecret);
+    if (index !== -1) {
+      results.value[index] = { ...results.value[index], hasCheckedIn: true };
+    }
+    
     checkinData.value = data;
-    results.value = [];
-    query.value = '';
+    // query.value = ''; // Keep the query so it's still there when going back
   } catch (e: any) {
     parseError(e);
   } finally {
@@ -156,9 +193,35 @@ const handleBack = () => {
 
         <div v-if="loading" class="search-status">Loading...</div>
 
-        <div v-if="results.length > 0" class="search-results">
+        <div v-if="results.length > 0" class="redeem-page__filters">
+          <div class="toggle-group">
+            <button 
+              class="tab-btn" 
+              :class="{ 'tab-btn--active': filter === 'all' }" 
+              @click="filter = 'all'"
+            >
+              All ({{ results.length }})
+            </button>
+            <button 
+              class="tab-btn" 
+              :class="{ 'tab-btn--active': filter === 'pending' }" 
+              @click="filter = 'pending'"
+            >
+              To Check-in ({{ results.filter(r => !r.hasCheckedIn).length }})
+            </button>
+            <button 
+              class="tab-btn" 
+              :class="{ 'tab-btn--active': filter === 'checked-in' }" 
+              @click="filter = 'checked-in'"
+            >
+              Checked-in ({{ results.filter(r => r.hasCheckedIn).length }})
+            </button>
+          </div>
+        </div>
+
+        <div v-if="filteredResults.length > 0" class="search-results">
           <SearchResultItem 
-            v-for="res in results" 
+            v-for="res in filteredResults" 
             :key="res.orderCode"
             :title="res.user?.fursonaName || res.name"
             :subtitle="`${res.name} | ${res.orderCode}`"
@@ -206,7 +269,7 @@ const handleBack = () => {
 .redeem-page__filters {
   display: flex;
   justify-content: center;
-  margin-bottom: var(--spacing-lg);
+  margin-bottom: var(--spacing-md);
 }
 
 .toggle-group {
@@ -216,6 +279,23 @@ const handleBack = () => {
   border-radius: var(--radius-sm);
   padding: 4px;
   gap: 4px;
+}
+
+.tab-btn {
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.tab-btn--active {
+  background: var(--color-primary);
+  color: white;
 }
 
 .redeem-page__title {

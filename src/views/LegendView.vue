@@ -41,7 +41,6 @@ const getContrastColor = (hexColor: string) => {
     </header>
 
     <div class="legend-grid">
-      <!-- LANYARDS -->
       <section class="legend-section">
         <h2 class="section-title">Lanyards (Cordini)</h2>
         <div class="legend-list">
@@ -57,7 +56,6 @@ const getContrastColor = (hexColor: string) => {
         </div>
       </section>
 
-      <!-- BADGE HOLDERS -->
       <section class="legend-section">
         <h2 class="section-title">Badge Holders (Portabadge)</h2>
         <div class="legend-list">

@@ -10,7 +10,6 @@ const port = 3000;
 app.use(cors());
 app.use(express.json());
 
-// GLOBAL LOGGER - Vedrai ogni singola richiesta qui
 app.use((req, res, next) => {
     console.log(`[${new Date().toLocaleTimeString()}] ${req.method} ${req.originalUrl}`);
     next();
@@ -22,7 +21,6 @@ const schemaPath = path.join(__dirname, 'schema.sql');
 const schema = fs.readFileSync(schemaPath, 'utf8');
 db.exec(schema);
 
-// Migration: Aggiungi propicUrl se manca
 try {
     const tableInfo = db.prepare("PRAGMA table_info(checkins)").all();
     if (!tableInfo.some(col => col.name === 'propicUrl')) {
@@ -74,14 +72,24 @@ const checkAuth = async (req, res, next) => {
     res.status(401).json({ errors: [{ message: 'Unauthorized', code: 'UNAUTHORIZED' }] });
 };
 
-// --- ROTTE API ---
 const api = express.Router();
 
 api.get('/test', (req, res) => res.send('OK - Server is working'));
 
-api.get('/checkin/pending-gadgets', (req, res) => {
+api.get('/checkin/pending-gadgets', checkAuth, (req, res) => {
     console.log('[GET] pending-gadgets called');
     const data = db.prepare('SELECT * FROM checkins ORDER BY createdAt ASC').all();
+    res.json({ success: true, data });
+});
+
+api.get('/checkin/updates', checkAuth, (req, res) => {
+    const lastId = Number(req.query.lastId);
+    if (isNaN(lastId)) return res.status(400).json({ success: false, message: 'valid lastId is required' });
+    
+    console.log(`[POLL] Checking updates after ID: ${lastId}`);
+    const data = db.prepare('SELECT * FROM checkins WHERE id > ? ORDER BY id ASC').all(lastId);
+    console.log(`[POLL] Found ${data.length} new items`);
+    
     res.json({ success: true, data });
 });
 
@@ -109,13 +117,60 @@ api.get('/checkin/search', checkAuth, async (req, res) => {
     res.status(fzRes.status).json(fzRes.data);
 });
 
-api.post('/checkin/redeem', checkAuth, async (req, res) => {
-    const fzRes = await fzPost("checkin/redeem", req.body, req.headers);
-    if (fzRes.status === 200 && fzRes.data?.status === 'ok') {
-        const d = fzRes.data;
-        db.prepare(`INSERT INTO checkins (checkinId, checkinNonce, checkinListId, fursonaName, firstName, lastName, orderSerial, orderCode, gadgets, shirtSize, portaBadgeType, lanyardType, hasFursuitBadge, shouldPrintApsJoinModule, propicUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(d.user?.userId, d.checkinNonce, req.body.checkinListIds[0], d.user?.fursonaName, d.firstName, d.lastName, d.orderSerial, d.orderCode, JSON.stringify(d.gadgets || []), d.shirtSize, d.portaBadgeType, d.lanyardType, d.hasFursuitBadge?1:0, d.shouldPrintApsJoinModule?1:0, d.user?.propic?.mediaUrl);
+api.get('/membership/aps-join-module', checkAuth, async (req, res) => {
+    try {
+        const query = new URLSearchParams(req.query);
+        let id = query.get('id') || query.get('userId');
+
+        const fzRes = await fzGet(`membership/aps-join-module?userId=${id}`, req.headers)
+        const body = fzRes.data;
+
+        res.status(fzRes.status);
+        res.set('Content-Type', "text/html");
+        return res.send(body);
+    } catch (err) {
+        console.error("[APS MODULE ERROR]", err.message);
+        return res.status(500).send('Failed to load APS module');
     }
-    res.status(fzRes.status).json(fzRes.data);
+});
+
+api.post('/checkin/redeem', async (req, res) => {
+    try {
+        const fzRes = await fzPost("checkin/redeem", req.body, req.headers);
+        if (fzRes.status === 200 && fzRes.data?.status === 'ok') {
+            const d = fzRes.data;
+            console.log(`[REDEEM SUCCESS] Order: ${d.orderCode}, User: ${d.user?.fursonaName}`);
+            
+            try {
+                const stmt = db.prepare(`INSERT INTO checkins (checkinId, checkinNonce, checkinListId, fursonaName, firstName, lastName, orderSerial, orderCode, gadgets, shirtSize, portaBadgeType, lanyardType, hasFursuitBadge, shouldPrintApsJoinModule, propicUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+                const result = stmt.run(
+                    d.user?.userId, 
+                    d.checkinNonce, 
+                    req.body.checkinListIds[0], 
+                    d.user?.fursonaName || 'Unknown', 
+                    d.firstName || '', 
+                    d.lastName || '', 
+                    d.orderSerial || 0, 
+                    d.orderCode || '', 
+                    JSON.stringify(d.gadgets || []), 
+                    d.shirtSize || '', 
+                    d.portaBadgeType || '', 
+                    d.lanyardType || '', 
+                    d.hasFursuitBadge ? 1 : 0, 
+                    d.shouldPrintApsJoinModule ? 1 : 0, 
+                    d.user?.propic?.mediaUrl || null
+                );
+                console.log(`[DB INSERT] Check-in saved with ID: ${result.lastInsertRowid}`);
+            } catch (dbErr) {
+                console.error("[DB ERROR] Failed to save check-in:", dbErr.message);
+                // We don't fail the request because the remote redeem succeeded
+            }
+        }
+        res.status(fzRes.status).json(fzRes.data);
+    } catch (err) {
+        console.error("[REDEEM ERROR]", err.message);
+        res.status(500).json({ success: false, message: err.message });
+    }
 });
 
 api.post('/proxy/authentication/login', async (req, res) => {
@@ -126,7 +181,6 @@ api.post('/proxy/authentication/login', async (req, res) => {
 
 app.use('/api', api);
 
-// CATCH-ALL per i 404 - utile per vedere cosa sta sbagliando il frontend
 app.use((req, res) => {
     console.error(`[404] Rotta non trovata: ${req.method} ${req.originalUrl}`);
     res.status(404).send(`Cannot ${req.method} ${req.url}`);
