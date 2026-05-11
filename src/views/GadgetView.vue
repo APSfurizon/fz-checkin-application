@@ -2,7 +2,7 @@
 import { onMounted, onUnmounted, computed, ref } from 'vue';
 import Swal from 'sweetalert2';
 import { useRouter } from 'vue-router';
-import { toggleGadget } from '@/services/checkinApi';
+import { toggleGadget, getUserInfo, getCheckinListName, getCheckinListId } from '@/services/checkinApi';
 import { useGadgets } from '@/composables/useGadgets';
 import AppButton from '@/components/atoms/AppButton.vue';
 import AppInput from '@/components/atoms/AppInput.vue';
@@ -93,6 +93,7 @@ onUnmounted(() => {
       <div class="header-left">
         <AppButton variant="ghost" size="sm" @click="router.push('/operator')">Back</AppButton>
         <h1 class="gadgets-page__title">Gadget Management</h1>
+        <p>Logged as '<i>{{ getUserInfo().fursonaName }}</i>' ({{ getUserInfo().userId }})</p>
       </div>
       <div class="gadgets-page__actions">
         <div class="volume-control">

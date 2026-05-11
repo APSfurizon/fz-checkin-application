@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { getOperatorId, setOperatorId, getCheckinListId, getCheckinListName, logout } from '@/services/checkinApi';
+import { getOperatorId, setOperatorId, getCheckinListId, getCheckinListName, logout, getUserInfo } from '@/services/checkinApi';
 import AppButton from '@/components/atoms/AppButton.vue';
 import AppInput from '@/components/atoms/AppInput.vue';
 
@@ -69,6 +69,8 @@ const proceed = (target: string) => {
           >
             Change List [{{listName}} ({{ listId }})]
           </AppButton>
+
+          <p>Logged in as '{{ getUserInfo().fursonaName }}' (ID: {{ getUserInfo().userId }})</p>
         </div>
       </div>
     </div>

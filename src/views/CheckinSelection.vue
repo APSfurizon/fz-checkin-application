@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { getCheckinLists, setCheckinListId } from '@/services/checkinApi';
+import { getCheckinLists, setCheckinListId, getUserInfo } from '@/services/checkinApi';
 import AppButton from '@/components/atoms/AppButton.vue';
 import ErrorModal from '@/components/organisms/ErrorModal.vue';
 
@@ -31,6 +31,7 @@ const selectList = (id: number, name: string) => {
   <div class="selection-page container">
     <header class="selection-page__header">
       <h1 class="selection-page__title">Furizon Check-in</h1>
+      <p class="selection-page__subtitle">Logged in as '{{ getUserInfo().fursonaName }}' (ID: {{ getUserInfo().userId }})</p>
       <p class="selection-page__subtitle">Choose a check-in list to proceed</p>
     </header>
 

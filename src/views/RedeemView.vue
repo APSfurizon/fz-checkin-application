@@ -2,7 +2,7 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import Swal from 'sweetalert2';
 import { useRouter } from 'vue-router';
-import { searchCheckins, redeemCheckin, getCheckinListId, getOperatorId } from '@/services/checkinApi';
+import { searchCheckins, redeemCheckin, getCheckinListId, getOperatorId, getUserInfo, getCheckinListName } from '@/services/checkinApi';
 import { useGadgets } from '@/composables/useGadgets';
 import AppInput from '@/components/atoms/AppInput.vue';
 import AppButton from '@/components/atoms/AppButton.vue';
@@ -177,7 +177,8 @@ const handleBack = () => {
     <header class="redeem-page__header">
       <AppButton variant="ghost" size="sm" @click="handleBack">Back</AppButton>
       <h1 class="redeem-page__title">Check-in / Search</h1>
-      <AppButton variant="secondary" size="sm" @click="checkinData = null; results = []; query = ''">New Search</AppButton>
+      <p>Logged in as '<i>{{ getUserInfo().fursonaName }}</i>' ({{ getUserInfo().userId }}) | List: <i>{{ getCheckinListName() }}</i> ({{ getCheckinListId() }})</p>
+      <!--AppButton variant="secondary" size="sm" @click="checkinData = null; results = []; query = ''">New Search</AppButton-->
     </header>
 
     <main class="redeem-page__content">

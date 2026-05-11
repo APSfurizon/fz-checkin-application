@@ -144,7 +144,7 @@ export function setUserInfo(userId: number, fursonaName: string) {
 }
 
 export function getUserInfo() {
-    const userId = parseInt(getCookie("auth_user_id") || "0");
+    const userId = parseInt(getCookie("auth_user_id") || "-1");
     const fursonaName = getCookie("auth_fursona_name") || "-";
     return { userId, fursonaName };
 }
@@ -154,7 +154,7 @@ export function setOperatorId(id: number) {
 }
 
 export function getOperatorId() {
-    return parseInt(getCookie("operator_id") || "0");
+    return parseInt(getCookie("operator_id") || "-1");
 }
 
 export function setCheckinListId(id: string, name: string) {
