@@ -22,6 +22,7 @@ const requestId = ref('');
 const listId = Number(getCheckinListId());
 const { addGadget } = useGadgets();
 const barcodeBuffer = ref('');
+const nextPage = ref<number | null>(null);
 let lastKeyTime = Date.now();
 
 const allResults = computed(() => {
@@ -57,7 +58,8 @@ const handleSearch = async () => {
     let params: any = { 
       query: query.value || undefined, 
       checkinListId: listId,
-      hasCheckedIn: null
+      hasCheckedIn: null,
+      page: nextPage.value || null,
     };
 
     switch (filter.value) {
@@ -73,7 +75,8 @@ const handleSearch = async () => {
     }
 
     const data = await searchCheckins(params);
-    results.value = data.results || [];
+    results.value.push(...(data.results || []));
+    nextPage.value = data.next || null;
   } catch (e: any) {
     parseError(e);
   } finally {
@@ -171,10 +174,12 @@ const emptyResults = () => {
   checkinData.value = null;
   results.value = [];
   query.value = '';
+  nextPage.value = null;
 };
 const reset = () => {
   checkinData.value = null;
   query.value = '';
+  nextPage.value = null;
   handleSearch();
 };
 const handleBack = () => {
@@ -247,6 +252,8 @@ const handleBack = () => {
           />
         </div>
         <div v-else-if="!loading" class="search-status">No results found</div>
+        <AppButton v-if="nextPage !== null" :loading="loading" @click="handleSearch">Load more results</AppButton>
+        <div></div>
       </div>
 
       <div v-else class="detail-section">

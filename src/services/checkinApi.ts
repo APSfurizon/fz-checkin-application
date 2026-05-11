@@ -34,8 +34,8 @@ export interface CheckinSearchResult {
 export interface CheckinSearchResponse {
     results: CheckinSearchResult[];
     count: number;
-    next: string | null;
-    previous: string | null;
+    next: number | null;
+    previous: number | null;
 }
 
 export interface CheckinResponse {
