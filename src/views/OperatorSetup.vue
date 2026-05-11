@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { getOperatorId, setOperatorId, getCheckinListId } from '@/services/checkinApi';
+import { getOperatorId, setOperatorId, getCheckinListId, getCheckinListName, logout } from '@/services/checkinApi';
 import AppButton from '@/components/atoms/AppButton.vue';
 import AppInput from '@/components/atoms/AppInput.vue';
 
 const router = useRouter();
 const operatorId = ref(getOperatorId() || '');
 const listId = ref(getCheckinListId());
+const listName = ref(getCheckinListName());
 
 onMounted(() => {
   if (!listId.value) {
@@ -28,10 +29,11 @@ const proceed = (target: string) => {
   <div class="operator-page container">
     <div class="operator-card">
       <header class="operator-card__header">
-        <div class="header-top">
+        <div class="header-center">
           <AppButton variant="ghost" size="sm" @click="router.push('/')">Back</AppButton>
-          <h2>Operator Setup</h2>
+          <AppButton variant="ghost" size="sm" @click="logout">Logout</AppButton>
         </div>
+        <h2>Operator Setup</h2>
         <p>Enter your ID and choose an operation</p>
       </header>
 
@@ -65,7 +67,7 @@ const proceed = (target: string) => {
             size="sm"
             @click="router.push('/')"
           >
-            Change List (ID: {{ listId }})
+            Change List [{{listName}} ({{ listId }})]
           </AppButton>
         </div>
       </div>

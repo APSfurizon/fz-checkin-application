@@ -138,6 +138,17 @@ export function getToken() {
     return getCookie("auth_token");
 }
 
+export function setUserInfo(userId: number, fursonaName: string) {
+    setCookie("auth_user_id", String(userId), 14);
+    setCookie("auth_fursona_name", fursonaName, 14);
+}
+
+export function getUserInfo() {
+    const userId = parseInt(getCookie("auth_user_id") || "0");
+    const fursonaName = getCookie("auth_fursona_name") || "-";
+    return { userId, fursonaName };
+}
+
 export function setOperatorId(id: number) {
     setCookie("operator_id", String(id), 14);
 }
@@ -146,17 +157,23 @@ export function getOperatorId() {
     return parseInt(getCookie("operator_id") || "0");
 }
 
-export function setCheckinListId(id: string) {
+export function setCheckinListId(id: string, name: string) {
     setCookie("checkin_list_id", id, 14);
+    setCookie("checkin_list_name", name, 14);
 }
 
 export function getCheckinListId() {
     return getCookie("checkin_list_id");
 }
 
+export function getCheckinListName() {
+    return getCookie("checkin_list_name");
+}
+
 export function logout() {
     eraseCookie("auth_token");
     eraseCookie("operator_id");
     eraseCookie("checkin_list_id");
+    eraseCookie("checkin_list_name");
     window.location.href = "/login";
 }

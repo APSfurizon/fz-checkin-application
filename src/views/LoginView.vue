@@ -43,7 +43,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { login as apiLogin } from '@/services/checkinApi';
+import { login as apiLogin, setUserInfo } from '@/services/checkinApi';
 import { useAuth } from '@/composables/useAuth';
 import AppButton from '@/components/atoms/AppButton.vue';
 import AppInput from '@/components/atoms/AppInput.vue';
@@ -71,6 +71,7 @@ async function onSubmit() {
 
     if (data.token) {
       login(data.token);
+      setUserInfo(data.userId, data.userName);
     } else {
       errorMsg.value = 'Token not received from server.';
     }

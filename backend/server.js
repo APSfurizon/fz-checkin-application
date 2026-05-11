@@ -96,9 +96,13 @@ async function printProxy(html, operatorID, id, type) {
     return await elaborateResponse(response);
 }
 
+function checkPermission_internal(res) {
+    return res?.data?.permissions?.includes("CAN_PERFORM_CHECKINS") || false;
+}
+
 async function checkUserPermission(headers) {
     const res = await fzGet("users/display/me", headers);
-    return res?.data?.permissions?.includes("CAN_PERFORM_CHECKINS") || false;
+    return checkPermission_internal(res);
 }
 
 
@@ -254,9 +258,23 @@ api.post('/checkin/redeem', async (req, res) => {
 });
 
 api.post('/proxy/authentication/login', async (req, res) => {
-    const fzRes = await fzPost("authentication/login", req.body, req.headers);
-    if (fzRes.data?.accessToken) return res.json({ token: fzRes.data.accessToken });
-    res.status(fzRes.status).json(fzRes.data);
+    const fzResLogin = await fzPost("authentication/login", req.body, req.headers);
+    if (fzResLogin.data?.accessToken) {
+        const newHeaders = {};
+        Object.assign(newHeaders, req.headers);
+        newHeaders['authorization'] = 'Bearer ' + fzResLogin.data.accessToken;
+        const fzResUser = await fzGet("users/display/me", newHeaders);
+        const hasPermission = checkPermission_internal(fzResUser);
+        if (!hasPermission) {
+            return res.status(403).json({ success: false, message: 'Insufficient permissions' });
+        }
+        return res.json({
+            token: fzResLogin.data.accessToken,
+            userId: fzResLogin.data.userId,
+            userName: fzResUser.data.display.fursonaName || '-'
+        });
+    }
+    res.status(fzResLogin.status).json(fzResLogin.data);
 });
 
 app.use('/api', api);

@@ -21,8 +21,8 @@ onMounted(async () => {
   }
 });
 
-const selectList = (id: number) => {
-  setCheckinListId(id.toString());
+const selectList = (id: number, name: string) => {
+  setCheckinListId(id.toString(), name);
   router.push('/operator');
 };
 </script>
@@ -31,11 +31,11 @@ const selectList = (id: number) => {
   <div class="selection-page container">
     <header class="selection-page__header">
       <h1 class="selection-page__title">Furizon Check-in</h1>
-      <p class="selection-page__subtitle">Seleziona la lista per iniziare</p>
+      <p class="selection-page__subtitle">Choose a check-in list to proceed</p>
     </header>
 
     <div v-if="loading" class="selection-page__loading">
-      Caricamento...
+      Loading...
     </div>
 
     <div v-else class="selection-page__grid">
@@ -43,12 +43,12 @@ const selectList = (id: number) => {
         v-for="list in lists" 
         :key="list.id" 
         class="list-card"
-        @click="selectList(list.id)"
+        @click="selectList(list.id, list.name)"
       >
         <h3 class="list-card__title">{{ list.name }}</h3>
         <p class="list-card__info">ID: {{ list.id }} | Progress: {{ list.checkedIn }}/{{ list.total }}</p>
         <div class="list-card__action">
-          <AppButton size="sm">Seleziona</AppButton>
+          <AppButton size="sm">Select</AppButton>
         </div>
       </div>
     </div>
