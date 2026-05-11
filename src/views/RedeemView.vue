@@ -24,10 +24,10 @@ const { addGadget } = useGadgets();
 const barcodeBuffer = ref('');
 let lastKeyTime = Date.now();
 
-const filteredResults = computed(() => {
-  if (filter.value === 'all') return results.value;
-  if (filter.value === 'pending') return results.value.filter(r => !r.hasCheckedIn);
-  if (filter.value === 'checked-in') return results.value.filter(r => r.hasCheckedIn);
+const allResults = computed(() => {
+  //if (filter.value === 'all') return results.value;
+  //if (filter.value === 'pending') return results.value.filter(r => !r.hasCheckedIn);
+  //if (filter.value === 'checked-in') return results.value.filter(r => r.hasCheckedIn);
   return results.value;
 });
 
@@ -54,10 +54,23 @@ const handleSearch = async () => {
   loading.value = true;
   clearError();
   try {
-    const params: any = { 
+    let params: any = { 
       query: query.value || undefined, 
-      checkinListId: listId 
+      checkinListId: listId,
+      hasCheckedIn: null
     };
+
+    switch (filter.value) {
+      case 'all':
+        params.hasCheckedIn = null;
+        break;
+      case 'pending':
+        params.hasCheckedIn = false;
+        break;
+      case 'checked-in':
+        params.hasCheckedIn = true;
+        break;
+    }
 
     const data = await searchCheckins(params);
     results.value = data.results || [];
@@ -154,6 +167,11 @@ const confirmRedeem = async (result: any) => {
   }
 };
 
+const emptyResults = () => {
+  checkinData.value = null;
+  results.value = [];
+  query.value = '';
+};
 const reset = () => {
   checkinData.value = null;
   query.value = '';
@@ -174,7 +192,7 @@ const handleBack = () => {
       <AppButton variant="ghost" size="sm" @click="handleBack">Back</AppButton>
       <h1 class="redeem-page__title">Check-in / Search</h1>
       <p>Logged in as '<i>{{ getUserInfo().fursonaName }}</i>' ({{ getUserInfo().userId }}) | List: <i>{{ getCheckinListName() }}</i> ({{ getCheckinListId() }})</p>
-      <!--AppButton variant="secondary" size="sm" @click="checkinData = null; results = []; query = ''">New Search</AppButton-->
+      <!--AppButton variant="secondary" size="sm" @click="emptyResults">New Search</AppButton-->
     </header>
 
     <main class="redeem-page__content">
@@ -195,30 +213,30 @@ const handleBack = () => {
             <button 
               class="tab-btn" 
               :class="{ 'tab-btn--active': filter === 'all' }" 
-              @click="filter = 'all'"
+              @click="filter = 'all'; emptyResults(); handleSearch();"
             >
-              All ({{ results.length }})
+              All
             </button>
             <button 
               class="tab-btn" 
               :class="{ 'tab-btn--active': filter === 'pending' }" 
-              @click="filter = 'pending'"
+              @click="filter = 'pending'; emptyResults(); handleSearch();"
             >
-              To Check-in ({{ results.filter(r => !r.hasCheckedIn).length }})
+              To Check-in
             </button>
             <button 
               class="tab-btn" 
               :class="{ 'tab-btn--active': filter === 'checked-in' }" 
-              @click="filter = 'checked-in'"
+              @click="filter = 'checked-in'; emptyResults(); handleSearch();"
             >
-              Checked-in ({{ results.filter(r => r.hasCheckedIn).length }})
+              Checked-in
             </button>
           </div>
         </div>
 
-        <div v-if="filteredResults.length > 0" class="search-results">
+        <div v-if="allResults.length > 0" class="search-results">
           <SearchResultItem 
-            v-for="res in filteredResults" 
+            v-for="res in allResults" 
             :key="res.orderCode"
             :title="res.user?.fursonaName || res.name"
             :subtitle="`${res.name} | ${res.orderCode}`"
