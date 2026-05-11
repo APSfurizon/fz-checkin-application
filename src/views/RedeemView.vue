@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import Swal from 'sweetalert2';
 import { useRouter } from 'vue-router';
 import { searchCheckins, redeemCheckin, getCheckinListId, getOperatorId, getUserInfo, getCheckinListName } from '@/services/checkinApi';
@@ -104,11 +104,24 @@ const handleBarcode = (e: KeyboardEvent) => {
   lastKeyTime = currentTime;
 };
 
+watch(() => router.currentRoute.value, (newRoute, oldRoute) => {
+  if (oldRoute.params.userId) {
+    // If we navigate to a route with a userId param, we should reset the search state
+    checkinData.value = null;
+    nextPage.value = null;
+  }
+});
+
 onMounted(() => {
   if (!listId) {
     router.push('/');
     return;
   }
+
+  if(router.currentRoute.value.params.userId) {
+    router.replace('/redeem');
+  }
+
   handleSearch();
   window.addEventListener('keydown', handleBarcode);
 });
@@ -162,7 +175,7 @@ const confirmRedeem = async (result: any) => {
     }
     
     checkinData.value = data;
-    // query.value = ''; // Keep the query so it's still there when going back
+    router.push(`/redeem/${data.user.userId}`);
   } catch (e: any) {
     parseError(e);
   } finally {

@@ -20,6 +20,11 @@ const router = createRouter({
       component: () => import("@views/RedeemView.vue"),
     },
     {
+      path: "/redeem/:userId",
+      name: "redeem-user",
+      component: () => import("@views/RedeemView.vue"),
+    },
+    {
       path: "/gadgets",
       name: "gadgets",
       component: () => import("@views/GadgetView.vue"),
