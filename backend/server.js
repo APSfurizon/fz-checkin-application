@@ -79,6 +79,9 @@ async function checkUserPermission(headers) {
     return res?.data?.permissions?.includes("CAN_PERFORM_CHECKINS") || false;
 }
 
+
+// This explicit call should be done only for internal endpoints.
+//  Endpoints which already hit fzbackend servers are authenticated by fzbackend itself, no need to double check
 const checkAuth = async (req, res, next) => {
     if (await checkUserPermission(req.headers)) return next();
     res.status(401).json({ errors: [{ message: 'Unauthorized', code: 'UNAUTHORIZED' }] });
@@ -119,17 +122,17 @@ api.put('/checkin/:id/serve-gadget', checkAuth, (req, res) => {
     res.json({ success: true });
 });
 
-api.get('/checkin/lists', checkAuth, async (req, res) => {
+api.get('/checkin/lists', async (req, res) => {
     const fzRes = await fzGet("checkin/lists", req.headers);
     res.status(fzRes.status).json(fzRes.data);
 });
 
-api.get('/checkin/search', checkAuth, async (req, res) => {
+api.get('/checkin/search', async (req, res) => {
     const fzRes = await fzGet("checkin/search?" + new URLSearchParams(req.query).toString(), req.headers);
     res.status(fzRes.status).json(fzRes.data);
 });
 
-api.get('/membership/aps-join-module', checkAuth, async (req, res) => {
+api.get('/membership/aps-join-module', async (req, res) => {
     try {
         const query = new URLSearchParams(req.query);
         let id = query.get('id') || query.get('userId');

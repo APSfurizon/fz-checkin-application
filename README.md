@@ -47,3 +47,7 @@ npm run build
 cd backend
 node server.js
 ```
+
+# RUN IN PRODUCTION
+
+- Change endpoints. Fzbackend endpoint located in `backend/server.js`. Checkin backend endpoint located in `src/services/axiosInstance.ts`
