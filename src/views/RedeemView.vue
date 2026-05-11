@@ -61,10 +61,6 @@ const handleSearch = async () => {
 
     const data = await searchCheckins(params);
     results.value = data.results || [];
-    
-    if (results.value.length === 1 && query.value.length > 5) {
-      confirmRedeem(results.value[0]);
-    }
   } catch (e: any) {
     parseError(e);
   } finally {
