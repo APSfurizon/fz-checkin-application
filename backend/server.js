@@ -31,7 +31,22 @@ try {
     console.error("Migration error:", e.message);
 }
 
+//Needs trailing / !!
 const BASE_URL = "https://fzbe.furizon.net/api/v1/";
+const PRINTER_PROXY_BASE_URL = "http://localhost:8082/";
+const PRINTER_PROXY_AUTH_USER = "changeit";
+const PRINTER_PROXY_AUTH_PASS = "changeit";
+
+async function elaborateResponse(response) {
+    const data = await response.text();
+    const respHeaders = response.headers;
+    if (respHeaders.get('content-type')?.includes('application/json')) {
+        try {
+            return { data: JSON.parse(data), headers: respHeaders, status: response.status };
+        } catch (e) {}
+    }
+    return {data, headers: respHeaders, status: response.status};
+}
 
 async function fzGet(url, reqHeaders) {
     const headers = {
@@ -41,14 +56,7 @@ async function fzGet(url, reqHeaders) {
         'Origin': "https://furpanel.furizon.net"
     };
     const response = await fetch(BASE_URL + url, { method: 'GET', headers });
-    const data = await response.text();
-    const respHeaders = response.headers;
-    if (respHeaders.get('content-type')?.includes('application/json')) {
-        try {
-            return { data: JSON.parse(data), headers: respHeaders, status: response.status };
-        } catch (e) {}
-    }
-    return {data, headers: respHeaders, status: response.status};
+    return await elaborateResponse(response);
 }
 
 async function fzPost(url, bodyObj, reqHeaders) {
@@ -64,14 +72,28 @@ async function fzPost(url, bodyObj, reqHeaders) {
         headers, 
         body: JSON.stringify(bodyObj) 
     });
-    const data = await response.text();
-    const respHeaders = response.headers;
-    if (respHeaders.get('content-type')?.includes('application/json')) {
-        try {
-            return { data: JSON.parse(data), headers: respHeaders, status: response.status };
-        } catch (e) {}
-    }
-    return {data, headers: respHeaders, status: response.status};
+    return await elaborateResponse(response);
+}
+
+async function printProxy(html, operatorID, id, type) {
+    const headers = {
+        'Authorization': 'Basic ' + Buffer.from(PRINTER_PROXY_AUTH_USER + ":" + PRINTER_PROXY_AUTH_PASS).toString('base64'),
+        'x-operator-id': operatorID,
+        'Content-Type': 'application/json',
+        'Referer': "http://furpanel.furizon.net/",
+        'Origin': "https://furpanel.furizon.net"
+    };
+    const response = await fetch(PRINTER_PROXY_BASE_URL + "internal/print/", { 
+        method: 'POST', 
+        headers, 
+        body: JSON.stringify({
+            html,
+            id,
+            operatorID,
+            type
+        }) 
+    });
+    return await elaborateResponse(response);
 }
 
 async function checkUserPermission(headers) {
@@ -146,6 +168,49 @@ api.get('/membership/aps-join-module', async (req, res) => {
     } catch (err) {
         console.error("[APS MODULE ERROR]", err.message);
         return res.status(500).send('Failed to load APS module');
+    }
+});
+
+api.post('/badge/print', async (req, res) => {
+    try {
+        requestBody = req.body;
+        if (!requestBody.operatorId || !requestBody.ids || !requestBody.type) {
+            return res.status(400).json({ success: false, message: 'operatorId, ids and type are required' });
+        }
+        const joinedIds = requestBody.ids.join(',');
+        //Retrieve html of the badges
+        let html = null;
+        switch(requestBody.type) {
+            case "USER_BADGE": {
+                const fzRes = await fzGet(`admin/export/badges/user?userIds=${joinedIds}`, req.headers)
+                if (fzRes.status !== 200) {
+                    console.error("[BADGE PRINT ERROR] Failed to retrieve user badge HTML:", fzRes);
+                    return res.status(500).json({ success: false, message: 'Failed to retrieve user badge HTML' });
+                }
+                html = fzRes.data;
+                break;
+            }
+            case "FURSUIT_BADGE": {
+                const fzRes = await fzGet(`admin/export/badges/fursuits?fursuitIds=${joinedIds}`, req.headers)
+                if (fzRes.status !== 200) {
+                    console.error("[BADGE PRINT ERROR] Failed to retrieve fursuit badge HTML:", fzRes);
+                    return res.status(500).json({ success: false, message: 'Failed to retrieve fursuit badge HTML' });
+                }
+                html = fzRes.data;
+                break;
+            }
+            default: return res.status(400).json({ success: false, message: 'Invalid badge type' });
+        }
+        const printId = requestBody.operatorId + "-" + requestBody.type + "-" + joinedIds;
+        const printRes = await printProxy(html, requestBody.operatorId, printId, requestBody.type);
+        if (printRes.status !== 200 && printRes.status !== 204) {
+            console.error("[BADGE PRINT ERROR] Failed to print badge:", printRes);
+            return res.status(500).json({ success: false, message: 'Failed to print badge' });
+        }
+        return res.status(200).json({ success: true, message: requestBody.type + ' printed successfully' });
+    } catch (err) {
+        console.error("[BADGE PRINT ERROR]", err.message);
+        return res.status(500).json({ success: false, message: 'Exception while printing badge' });
     }
 });
 

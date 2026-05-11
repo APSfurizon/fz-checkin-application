@@ -50,4 +50,4 @@ node server.js
 
 # RUN IN PRODUCTION
 
-- Change endpoints. Fzbackend endpoint located in `backend/server.js`. Checkin backend endpoint located in `src/services/axiosInstance.ts`
+- Change endpoints. Fzbackend endpoint + printer proxy endpoint and basic auth located in `backend/server.js`. Checkin backend endpoint located in `src/services/axiosInstance.ts`

@@ -17,7 +17,7 @@ onMounted(() => {
 
 const proceed = (target: string) => {
   console.log('Navigating to:', target, 'with operator:', operatorId.value);
-  setOperatorId(operatorId.value);
+  setOperatorId(parseInt(operatorId.value));
   router.push(target).catch(err => {
     console.error('Navigation error:', err);
   });

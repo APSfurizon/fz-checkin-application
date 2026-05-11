@@ -3,7 +3,7 @@ import { computed, watch } from 'vue';
 import Swal from 'sweetalert2';
 import AppBadge from '../atoms/AppBadge.vue';
 import AppButton from '../atoms/AppButton.vue';
-import { getOperatorId, cancelCheckin, getApsJoinModule } from '@/services/checkinApi';
+import { getOperatorId, cancelCheckin, getApsJoinModule, printBadge } from '@/services/checkinApi';
 
 interface Props {
   userData: any;
@@ -47,16 +47,34 @@ const handleCancel = async () => {
   }
 };
 
+
+const printUserBadge = async () => {
+    const opId = getOperatorId();
+    const userId = props.userData.user?.userId || props.userData.userId;
+    const res = await printBadge(opId, [userId], 'USER_BADGE');
+    await Swal.fire({
+      icon: res.status === 200 ? 'success' : 'error',
+      title: 'Badge print',
+      text: res.data.message
+    });
+}
+
+const printFursuitBadge = async () => {
+    const opId = getOperatorId();
+    let ids = [];
+    props.userData.fursuits.forEach((f: any) => {
+        ids.push(f.fursuit.id);
+    });
+    const res = await printBadge(opId, ids, 'FURSUIT_BADGE');
+    await Swal.fire({
+      icon: res.status === 200 ? 'success' : 'error',
+      title: 'Badge print',
+      text: res.data.message
+    });
+}
+
 const goToApsModule = async () => {
   const userId = props.userData.user?.userId || props.userData.userId;
-  if (!userId) {
-    await Swal.fire({
-      icon: 'error',
-      title: 'APS module print failed',
-      text: 'Missing user id for APS module print.'
-    });
-    return;
-  }
 
   const url = `membership/aps-join-module?id=${encodeURIComponent(String(userId))}`;
 
@@ -270,12 +288,12 @@ if(status.toLowerCase() !== 'ok') {
       </div>
 
       <div class="print-actions-row">
-        <AppButton variant="primary" size="lg" @click="print('standard')">PRINT STANDARD BADGE</AppButton>
+        <AppButton variant="primary" size="lg" @click="printUserBadge">PRINT STANDARD BADGE</AppButton>
         <AppButton 
           v-if="userData.hasFursuitBadge" 
           variant="primary"
           size="lg"
-          @click="print('fursuit')"
+          @click="printFursuitBadge"
         >
           PRINT FURSUIT BADGE
         </AppButton>

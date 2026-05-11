@@ -78,7 +78,7 @@ export async function searchCheckins(params: {
 export async function redeemCheckin(data: {
     checkinListIds: number[];
     secret: string;
-    operatorId?: string;
+    operatorId?: number;
 }) {
     const response = await furpanelApi.post("checkin/redeem", data);
     return response.data as CheckinResponse;
@@ -118,6 +118,18 @@ export async function cancelCheckin(checkinNonce: string, reason: string) {
     return response.data;
 }
 
+export async function printBadge(operatorId: number, ids: number[], type: "USER_BADGE" | "FURSUIT_BADGE") {
+    const response = await furpanelApi.post("badge/print", {
+            operatorId,
+            ids,
+            type
+        }, {
+            validateStatus: () => true //Don't throw exception
+        }
+    );
+    return response;
+}
+
 export function setToken(token: string) {
     setCookie("auth_token", token, 14);
 }
@@ -126,12 +138,12 @@ export function getToken() {
     return getCookie("auth_token");
 }
 
-export function setOperatorId(id: string) {
-    setCookie("operator_id", id, 14);
+export function setOperatorId(id: number) {
+    setCookie("operator_id", String(id), 14);
 }
 
 export function getOperatorId() {
-    return getCookie("operator_id");
+    return parseInt(getCookie("operator_id") || "0");
 }
 
 export function setCheckinListId(id: string) {
