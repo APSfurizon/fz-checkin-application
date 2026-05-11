@@ -186,7 +186,6 @@ const confirmRedeem = async (result: any) => {
 const emptyResults = () => {
   checkinData.value = null;
   results.value = [];
-  query.value = '';
   nextPage.value = null;
 };
 const reset = () => {
@@ -219,9 +218,9 @@ const handleBack = () => {
           <AppInput 
             v-model="query" 
             placeholder="Search by name, order code or serial..." 
-            @keyup.enter="handleSearch"
+            @keyup.enter="emptyResults(); handleSearch();"
           />
-          <AppButton :loading="loading" @click="handleSearch">Search</AppButton>
+          <AppButton :loading="loading" @click="emptyResults(); handleSearch();">Search</AppButton>
         </div>
 
         <div v-if="loading" class="search-status">Loading...</div>
