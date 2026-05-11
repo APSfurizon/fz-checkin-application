@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
+import { ref, onMounted, onUnmounted, computed, watch, useTemplateRef } from 'vue';
 import Swal from 'sweetalert2';
 import { useRouter } from 'vue-router';
 import { searchCheckins, redeemCheckin, getCheckinListId, getOperatorId, getUserInfo, getCheckinListName } from '@/services/checkinApi';
@@ -14,6 +14,8 @@ const router = useRouter();
 const query = ref('');
 const results = ref<any[]>([]);
 const filter = ref<'all' | 'pending' | 'checked-in'>('all');
+const secret = ref<string>('');
+const secretRef = useTemplateRef<HTMLInputElement>('secretRef');
 const checkinData = ref<any>(null);
 const loading = ref(false);
 const error = ref('');
@@ -31,6 +33,29 @@ const allResults = computed(() => {
   //if (filter.value === 'checked-in') return results.value.filter(r => r.hasCheckedIn);
   return results.value;
 });
+
+const redeemSecret = async () => {
+  if (!secret.value.trim()) return;
+  
+  loading.value = true;
+  clearError();
+  try {
+    const data = await redeemCheckin({
+      checkinListIds: [listId],
+      secret: secret.value.trim(),
+      operatorId: getOperatorId() || undefined
+    });
+    
+    addGadget(data);
+    
+    checkinData.value = data;
+    router.push(`/redeem/${data.user.userId}`);
+  } catch (e: any) {
+    parseError(e);
+  } finally {
+    loading.value = false;
+  }
+};
 
 const parseError = (e: any) => {
   const data = e.response?.data;
@@ -84,24 +109,11 @@ const handleSearch = async () => {
   }
 };
 
-const handleBarcode = (e: KeyboardEvent) => {
-  const currentTime = Date.now();
-  
-  if (currentTime - lastKeyTime > 50) {
-    barcodeBuffer.value = '';
+const handleGlobalKeydown = (e: KeyboardEvent) => {
+  if(document.activeElement && (document.activeElement.tagName === 'INPUT')) {
+    return; // Don't interfere with typing in inputs
   }
-  
-  if (e.key === 'Enter') {
-    if (barcodeBuffer.value.length > 3) {
-      query.value = barcodeBuffer.value;
-      handleSearch();
-      barcodeBuffer.value = '';
-    }
-  } else if (e.key.length === 1) {
-    barcodeBuffer.value += e.key;
-  }
-  
-  lastKeyTime = currentTime;
+  secretRef.value?.focus();
 };
 
 watch(() => router.currentRoute.value, (newRoute, oldRoute) => {
@@ -123,11 +135,12 @@ onMounted(() => {
   }
 
   handleSearch();
-  window.addEventListener('keydown', handleBarcode);
+
+  window.addEventListener('keydown', handleGlobalKeydown);
 });
 
 onUnmounted(() => {
-  window.removeEventListener('keydown', handleBarcode);
+  window.removeEventListener('keydown', handleGlobalKeydown);
 });
 
 const confirmRedeem = async (result: any) => {
@@ -136,8 +149,8 @@ const confirmRedeem = async (result: any) => {
   if (result.hasCheckedIn) {
     const { isConfirmed } = await Swal.fire({
       icon: 'warning',
-      title: 'Cancel check-in?',
-      text: `Are you sure you want to cancel the check-in of ${displayName}?`,
+      title: 'Checkin anyway?',
+      text: `Are you sure you want to check-in again ${displayName}?`,
       showCancelButton: true,
       confirmButtonText: 'Yes, continue',
       cancelButtonText: 'No'
@@ -214,6 +227,18 @@ const handleBack = () => {
 
     <main class="redeem-page__content">
       <div v-if="!checkinData" class="search-section">
+        <div class="search-bar">
+          <AppInput
+            :style="{'-webkit-text-security': 'disc'}"
+            ref="secretRef"
+            name="secret"
+            v-model="secret" 
+            placeholder="Secret..." 
+            @keyup.enter.prevent="redeemSecret"
+            autocomplete="off"
+          />
+          <AppButton :loading="loading" @click="redeemSecret()">Redeem</AppButton>
+        </div>
         <div class="search-bar">
           <AppInput 
             v-model="query" 
