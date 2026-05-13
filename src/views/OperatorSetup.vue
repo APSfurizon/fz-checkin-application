@@ -61,6 +61,14 @@ const proceed = (target: string) => {
           >
             Manage Gadgets
           </AppButton>
+          
+          <AppButton 
+            variant="secondary" 
+            :disabled="!operatorId"
+            @click="proceed('/logs')"
+          >
+            View Logs
+          </AppButton>
 
           <AppButton 
             variant="ghost" 

@@ -38,6 +38,29 @@ export interface CheckinSearchResponse {
     previous: number | null;
 }
 
+export interface CheckinLog {
+    checkinId: number;
+    checkinListId: number;
+    type: string;
+    successful: boolean;
+    autoCheckedIn: boolean;
+    createdAt: string;
+    datetime: string;
+    localizedErrorReason?: string | null;
+    optionalErrorMessage?: string | null;
+    orderCode?: string;
+    firstName?: string;
+    lastName?: string;
+    user?: UserDisplayData;
+}
+
+export interface CheckinLogsResponse {
+    results: CheckinLog[];
+    count: number;
+    next: number | null;
+    previous: number | null;
+}
+
 export interface CheckinResponse {
     checkinNonce: string;
     status: "ok" | "incomplete" | "error";
@@ -73,6 +96,22 @@ export async function searchCheckins(params: {
 }) {
     const response = await furpanelApi.get("checkin/search", { params });
     return response.data as CheckinSearchResponse;
+}
+
+export async function getCheckinLogs(params: {
+    createdSince?: string;
+    createdBefore?: string;
+    datetimeSince?: string;
+    datetimeBefore?: string;
+    successful?: boolean;
+    checkinListId?: number;
+    type?: string;
+    autoCheckedIn?: boolean;
+    orderBy?: string;
+    page?: number;
+}) {
+    const response = await furpanelApi.get("checkin/logs", { params });
+    return response.data as CheckinLogsResponse;
 }
 
 export async function redeemCheckin(data: {

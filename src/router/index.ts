@@ -39,6 +39,11 @@ const router = createRouter({
       name: "legend",
       component: () => import("@views/LegendView.vue"),
     },
+    {
+      path: "/logs",
+      name: "logs",
+      component: () => import("@views/LogsView.vue"),
+    },
   ],
 });
 

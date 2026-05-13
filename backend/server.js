@@ -158,6 +158,13 @@ api.get('/checkin/search', async (req, res) => {
     res.status(fzRes.status).json(fzRes.data);
 });
 
+api.get('/checkin/logs', async (req, res) => {
+    const query = new URLSearchParams(req.query).toString();
+    console.log(`[PROXY GET] checkin/logs?${query}`);
+    const fzRes = await fzGet("checkin/logs?" + query, req.headers);
+    res.status(fzRes.status).json(fzRes.data);
+});
+
 api.get('/membership/aps-join-module', async (req, res) => {
     try {
         const query = new URLSearchParams(req.query);

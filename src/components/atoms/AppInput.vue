@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { ref } from 'vue';
+
 interface Props {
   modelValue: string | number;
   type?: string;
@@ -8,14 +10,22 @@ interface Props {
   disabled?: boolean;
 }
 
+const inputElement = ref<HTMLInputElement>();
+
 defineProps<Props>();
 defineEmits(['update:modelValue']);
+defineExpose({
+  focus: () => inputElement.value?.focus(),
+  select: () => inputElement.value?.select(),
+  element: inputElement
+});
 </script>
 
 <template>
   <div class="field">
     <label v-if="label" class="field__label">{{ label }}</label>
     <input
+      ref="inputElement"
       :type="type"
       :value="modelValue"
       :placeholder="placeholder"
