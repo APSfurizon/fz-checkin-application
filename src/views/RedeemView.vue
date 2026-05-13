@@ -14,6 +14,7 @@ const router = useRouter();
 const query = ref('');
 const results = ref<any[]>([]);
 const filter = ref<'all' | 'pending' | 'checked-in'>('all');
+const checkinType = ref<'ENTRY' | 'EXIT'>('ENTRY');
 const secret = ref<string>('');
 const secretRef = useTemplateRef<HTMLInputElement>('secretRef');
 const checkinData = ref<any>(null);
@@ -41,7 +42,8 @@ const redeemSecret = async () => {
     const data = await redeemCheckin({
       checkinListIds: [listId],
       secret: secret.value.trim(),
-      operatorId: getOperatorId() || undefined
+      operatorId: getOperatorId() || undefined,
+      checkinType: checkinType.value
     });
     
     addGadget(data);
@@ -144,28 +146,50 @@ onUnmounted(() => {
 const confirmRedeem = async (result: any) => {
   const displayName = result.user?.fursonaName || result.name;
   
-  if (result.hasCheckedIn) {
-    const { isConfirmed } = await Swal.fire({
-      icon: 'warning',
-      title: 'Checkin anyway?',
-      text: `Are you sure you want to check-in again ${displayName}?`,
-      showCancelButton: true,
-      confirmButtonText: 'Yes, continue',
-      cancelButtonText: 'No'
-    });
-    if (!isConfirmed) return;
-    // Implement cancellation logic if needed, but the user only asked for the message for now
-    // Actually, usually we would call cancelCheckin here.
+  if (checkinType.value === 'ENTRY') {
+    if (result.hasCheckedIn) {
+      const { isConfirmed } = await Swal.fire({
+        icon: 'warning',
+        title: 'Check-in anyway?',
+        text: `Are you sure you want to check-in again ${displayName}?`,
+        showCancelButton: true,
+        confirmButtonText: 'Yes, continue',
+        cancelButtonText: 'No'
+      });
+      if (!isConfirmed) return;
+    } else {
+      const { isConfirmed } = await Swal.fire({
+        icon: 'question',
+        title: 'Perform check-in?',
+        text: `Do you want to perform check-in for ${displayName}?`,
+        showCancelButton: true,
+        confirmButtonText: 'Yes, check-in',
+        cancelButtonText: 'No'
+      });
+      if (!isConfirmed) return;
+    }
   } else {
-    const { isConfirmed } = await Swal.fire({
-      icon: 'question',
-      title: 'Perform check-in?',
-      text: `Do you want to perform check-in for ${displayName}?`,
-      showCancelButton: true,
-      confirmButtonText: 'Yes, check-in',
-      cancelButtonText: 'No'
-    });
-    if (!isConfirmed) return;
+    if (!result.hasCheckedIn) {
+      const { isConfirmed } = await Swal.fire({
+        icon: 'warning',
+        title: 'Check-out anyway?',
+        text: `Are you sure you want to check-out again ${displayName}?`,
+        showCancelButton: true,
+        confirmButtonText: 'Yes, continue',
+        cancelButtonText: 'No'
+      });
+      if (!isConfirmed) return;
+    } else {
+      const { isConfirmed } = await Swal.fire({
+        icon: 'question',
+        title: 'Perform check-out?',
+        text: `Do you want to perform check-out for ${displayName}?`,
+        showCancelButton: true,
+        confirmButtonText: 'Yes, check-out',
+        cancelButtonText: 'No'
+      });
+      if (!isConfirmed) return;
+    }
   }
   
   loading.value = true;
@@ -174,7 +198,8 @@ const confirmRedeem = async (result: any) => {
     const data = await redeemCheckin({
       checkinListIds: [listId],
       secret: result.checkinSecret,
-      operatorId: getOperatorId() || undefined
+      operatorId: getOperatorId() || undefined,
+      checkinType: checkinType.value
     });
     
     addGadget(data);
@@ -192,6 +217,10 @@ const confirmRedeem = async (result: any) => {
   } finally {
     loading.value = false;
   }
+};
+
+const toggleEntryExit = () => {
+  checkinType.value = checkinType.value === 'ENTRY' ? 'EXIT' : 'ENTRY';
 };
 
 const emptyResults = () => {
@@ -226,6 +255,11 @@ const handleBack = () => {
     <main class="redeem-page__content">
       <div v-if="!checkinData" class="search-section">
         <div class="search-bar">
+          <AppButton
+            :variant="checkinType === 'ENTRY' ? 'entry' : 'exit'"
+            :style="{'min-width': '10%'}"
+            @click="toggleEntryExit"
+          >{{ checkinType }}</AppButton>
           <AppInput
             :style="{'-webkit-text-security': 'disc'}"
             ref="secretRef"
