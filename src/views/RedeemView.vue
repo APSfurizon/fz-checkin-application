@@ -23,9 +23,7 @@ const errorCode = ref('');
 const requestId = ref('');
 const listId = Number(getCheckinListId());
 const { addGadget } = useGadgets();
-const barcodeBuffer = ref('');
 const nextPage = ref<number | null>(null);
-let lastKeyTime = Date.now();
 
 const allResults = computed(() => {
   //if (filter.value === 'all') return results.value;
