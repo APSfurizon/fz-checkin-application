@@ -6,6 +6,7 @@ const path = require('path');
 
 const app = express();
 const port = 3000;
+const host = '0.0.0.0';
 
 app.use(cors());
 app.use(express.json());
@@ -337,8 +338,8 @@ app.use((req, res) => {
     res.status(404).send(`Cannot ${req.method} ${req.url}`);
 });
 
-app.listen(port, () => {
+app.listen(port, host, () => {
     console.log('==========================================');
-    console.log(` SERVER IN ASCOLTO SU http://localhost:${port}`);
+    console.log(` SERVER IN ASCOLTO SU http://${host}:${port}`);
     console.log('==========================================');
 });
