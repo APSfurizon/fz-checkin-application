@@ -63,7 +63,7 @@ const printUserBadge = async () => {
 
 const printFursuitBadge = async () => {
     const opId = getOperatorId();
-    let ids = [];
+    let ids: number[] = [];
     props.userData.fursuits.forEach((f: any) => {
         ids.push(f.fursuit.id);
     });
