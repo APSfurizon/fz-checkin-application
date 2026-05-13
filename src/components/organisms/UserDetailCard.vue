@@ -138,6 +138,10 @@ const sponsorshipVariant = computed(() => {
   }
 });
 
+const reverseDailyDays = computed(() => {
+  return [...(props.userData.dailyDays || [])].reverse();
+});
+
 
 // LANYARD COLORS CONFIGURATION
 const getLanyardColor = (type: string) => {
@@ -381,7 +385,7 @@ if(status.toLowerCase() !== 'ok') {
             <div class="room-header">
               <strong>{{ userData.roomInfo.roomData?.roomTypeNames?.en || 'Accommodation' }}</strong>
               <div class="room-badges">
-                <AppBadge v-if="userData.roomInfo.userIsOwner" variant="primary">Owner</AppBadge>
+                <AppBadge v-if="userData.roomInfo.userIsOwner" variant="success">Owner</AppBadge>
                 <AppBadge v-if="userData.roomInfo.confirmed" :variant="userData.roomInfo.confirmed ? 'success' : 'warning'">
                   {{ userData.roomInfo.confirmed ? 'Confirmed' : 'Pending' }}
                 </AppBadge>
@@ -414,9 +418,13 @@ if(status.toLowerCase() !== 'ok') {
             </div>
           </div>
         </section>
-        <section v-else class="info-section">
-          <h4 class="info-section__title">Room Data</h4>
-          <div class="no-data">No room information available.</div>
+
+        <section v-if="userData.dailyTicket" class="info-section">
+          <h4 class="info-section__title">Daily days</h4>
+          <span>Today is {{ new Date().toISOString().split('T')[0] }}</span>
+          <ul class="daily-days-list">
+            <li v-for="(d, idx) in reverseDailyDays" :key="idx">{{ d }}</li>
+          </ul>
         </section>
       </div>
 
@@ -708,6 +716,11 @@ if(status.toLowerCase() !== 'ok') {
   margin-bottom: 20px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   padding-bottom: 8px;
+}
+
+.daily-days-list {
+  margin-left: 0;
+  padding-left: 1.5em;
 }
 
 .info-grid {
