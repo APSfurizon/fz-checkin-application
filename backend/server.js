@@ -202,6 +202,7 @@ api.post('/badge/print', async (req, res) => {
             }
             default: return res.status(400).json({ success: false, message: 'Invalid badge type' });
         }
+        console.log("[BADGE PRINT] Retrieved badge HTML, sending to print proxy...");
         const printId = requestBody.operatorId + "-" + requestBody.type + "-" + joinedIds;
         const printRes = await printProxy(html, requestBody.operatorId, printId, requestBody.type);
         if (printRes.status !== 200 && printRes.status !== 204) {
