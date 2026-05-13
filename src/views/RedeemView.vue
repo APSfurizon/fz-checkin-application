@@ -207,7 +207,7 @@ const confirmRedeem = async (result: any) => {
     // Update the item in results to show it's now checked in
     const index = results.value.findIndex(r => r.checkinSecret === result.checkinSecret);
     if (index !== -1) {
-      results.value[index] = { ...results.value[index], hasCheckedIn: true };
+      results.value[index] = { ...results.value[index], hasCheckedIn: checkinType.value === 'ENTRY' ? true : false };
     }
     
     checkinData.value = data;
@@ -237,6 +237,7 @@ const reset = () => {
 const handleBack = () => {
   if (checkinData.value) {
     checkinData.value = null;
+    router.push(`/redeem`);
   } else {
     router.push('/operator');
   }
