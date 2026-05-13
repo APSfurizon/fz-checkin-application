@@ -148,23 +148,24 @@ const reverseDailyDays = computed(() => {
 // LANYARD COLORS CONFIGURATION
 const getLanyardColor = (type: string) => {
   const t = type?.toUpperCase() || '';
-  if (t.includes('MAIN') || t.includes('SECURITY')) return '#ff4757';
-  if (t.includes('STAFF')) return '#70a1ff';
-  if (t.includes('DAILY')) return '#ffffff';
-  if (t.includes('ATTENDEE')) return '#2ed573';
-  if (t.includes('SUPER_SPONSOR')) return '#ffa502';
-  if (t.includes('SPONSOR')) return '#a29bfe';
-  if (t.includes('ULTRA_SPONSOR') || t.includes('EXPLORER')) return '#eccc68';
+  console.log(t);
+  if (t === 'MAIN_STAFF' || t === 'SECURITY_STAFF') return '#ff4757';
+  if (t === 'JUNIOR_STAFF') return '#70a1ff';
+  if (t === 'DAILY_BADGE') return '#ffffff';
+  if (t === 'NORMAL_BADGE') return '#2ed573';
+  if (t === 'SUPER_SPONSOR') return '#ffa502';
+  if (t === 'NORMAL_SPONSOR') return '#a29bfe';
+  if (t === 'ULTRA_SPONSOR') return '#eccc68';
   return '#a4b0be';
 };
 
 // PORTABADGE COLORS CONFIGURATION
 const getBadgeHolderColor = (type: string) => {
   const t = type?.toUpperCase() || '';
-  if (t.includes('MAIN') || t.includes('SECURITY')) return '#ff4757';
-  if (t.includes('STAFF')) return '#70a1ff';
-  if (t.includes('FURSUIT')) return '#eccc68';
-  if (t.includes('DAILY')) return '#2ed573';
+  if (t === 'MAIN_AND_SECURITY_STAFF') return '#ff4757';
+  if (t === 'GENERAL_STAFF') return '#70a1ff';
+  if (t === 'FURSUITERS') return '#eccc68';
+  if (t === 'DAILY_ATTENDEES') return '#2ed573';
   return '#2f3542';
 };
 
