@@ -21,16 +21,6 @@ const schemaPath = path.join(__dirname, 'schema.sql');
 const schema = fs.readFileSync(schemaPath, 'utf8');
 db.exec(schema);
 
-try {
-    const tableInfo = db.prepare("PRAGMA table_info(checkins)").all();
-    if (!tableInfo.some(col => col.name === 'propicUrl')) {
-        console.log('Migrazione: aggiunta colonna propicUrl...');
-        db.prepare("ALTER TABLE checkins ADD COLUMN propicUrl TEXT NULL").run();
-    }
-} catch (e) {
-    console.error("Migration error:", e.message);
-}
-
 //Needs trailing / !!
 const BASE_URL = "https://fzbe.furizon.net/api/v1/";
 const PRINTER_PROXY_BASE_URL = "http://localhost:8082/";
@@ -233,23 +223,73 @@ api.post('/checkin/redeem', async (req, res) => {
             console.log(`[REDEEM SUCCESS] Order: ${d.orderCode}, User: ${d.user?.fursonaName}`);
             
             try {
-                const stmt = db.prepare(`INSERT INTO checkins (checkinId, checkinNonce, checkinListId, fursonaName, firstName, lastName, orderSerial, orderCode, gadgets, shirtSize, portaBadgeType, lanyardType, hasFursuitBadge, shouldPrintApsJoinModule, propicUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+                const stmt = db.prepare(`
+                    INSERT INTO 
+                    checkins (
+                        userId,
+                        checkinNonce,
+                        checkinListId,
+                        fursonaName,
+                        firstName,
+                        lastName,
+                        orderSerial,
+                        orderCode,
+                        gadgets,
+                        shirtSize,
+                        portaBadgeType,
+                        lanyardType,
+                        hasFursuitBadge,
+                        shouldPrintApsJoinModule,
+                        propicUrl,
+                        operatorId
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(orderCode) DO UPDATE SET
+                        userId=?,
+                        checkinNonce=?,
+                        checkinListId=?,
+                        fursonaName=?,
+                        firstName=?,
+                        lastName=?,
+                        orderSerial=?,
+                        gadgets=?,
+                        shirtSize=?,
+                        portaBadgeType=?,
+                        lanyardType=?,
+                        hasFursuitBadge=?,
+                        shouldPrintApsJoinModule=?,
+                        propicUrl=?,
+                        operatorId=?
+                `);
+                const userId = d.user?.userId
+                const checkinNonce = d.checkinNonce
+                const checkinListId = req.body.checkinListIds[0]           
+                const fursonaName = d.user?.fursonaName || '-'
+                const firstName = d.firstName || ''
+                const lastName = d.lastName || ''
+                const orderSerial = d.orderSerial || 0
+                const orderCode = d.orderCode || ''
+                const gadgets = JSON.stringify(d.gadgets || [])
+                const shirtSize = d.shirtSize || ''
+                const portaBadgeType = d.portaBadgeType || ''
+                const lanyardType = d.lanyardType || ''
+                const hasFursuitBadge = d.hasFursuitBadge ? 1 : 0
+                const shouldPrintApsJoinModule = d.shouldPrintApsJoinModule ? 1 : 0
+                const propicUrl =  d.user?.propic?.mediaUrl || null
+                const operatorId = req.body.operatorId || -1 
                 const result = stmt.run(
-                    d.user?.userId, 
-                    d.checkinNonce, 
-                    req.body.checkinListIds[0], 
-                    d.user?.fursonaName || 'Unknown', 
-                    d.firstName || '', 
-                    d.lastName || '', 
-                    d.orderSerial || 0, 
-                    d.orderCode || '', 
-                    JSON.stringify(d.gadgets || []), 
-                    d.shirtSize || '', 
-                    d.portaBadgeType || '', 
-                    d.lanyardType || '', 
-                    d.hasFursuitBadge ? 1 : 0, 
-                    d.shouldPrintApsJoinModule ? 1 : 0, 
-                    d.user?.propic?.mediaUrl || null
+                    userId, checkinNonce, checkinListId, 
+                    fursonaName, firstName, lastName, 
+                    orderSerial, orderCode, 
+                    gadgets, shirtSize, portaBadgeType, lanyardType, 
+                    hasFursuitBadge, shouldPrintApsJoinModule, 
+                    propicUrl, operatorId,
+
+                    userId, checkinNonce, checkinListId, 
+                    fursonaName, firstName, lastName, 
+                    orderSerial, 
+                    gadgets, shirtSize, portaBadgeType, lanyardType, 
+                    hasFursuitBadge, shouldPrintApsJoinModule, 
+                    propicUrl, operatorId,
                 );
                 console.log(`[DB INSERT] Check-in saved with ID: ${result.lastInsertRowid}`);
             } catch (dbErr) {
@@ -262,6 +302,11 @@ api.post('/checkin/redeem', async (req, res) => {
         console.error("[REDEEM ERROR]", err.message);
         res.status(500).json({ success: false, message: err.message });
     }
+});
+
+api.post('/checkin/cancel', async (req, res) => {
+    const fzRes = await fzPost("checkin/cancel", req.body, req.headers);
+    res.status(fzRes.status).json(fzRes.data);
 });
 
 api.post('/proxy/authentication/login', async (req, res) => {

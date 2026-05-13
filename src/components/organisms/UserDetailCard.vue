@@ -1,14 +1,15 @@
 <script setup lang="ts">
+import { useRouter } from 'vue-router';
 import { computed, watch } from 'vue';
 import Swal from 'sweetalert2';
 import AppBadge from '../atoms/AppBadge.vue';
 import AppButton from '../atoms/AppButton.vue';
-import { getOperatorId, cancelCheckin, getApsJoinModule, printBadge } from '@/services/checkinApi';
+import { getOperatorId, cancelCheckin, getApsJoinModule, printBadge, getCheckinListId } from '@/services/checkinApi';
 
 interface Props {
   userData: any;
 }
-
+const router = useRouter();
 const props = defineProps<Props>();
 const emit = defineEmits(['print-badge', 'cancelled']);
 
@@ -25,18 +26,19 @@ const handleCancel = async () => {
   if (explanation === null) return;
 
   try {
-    const res = await cancelCheckin({
-      checkinNonce: props.userData.checkinNonce,
-      checkinListId: props.userData.checkinListId,
-      explanation
-    });
-    if (res.status === 'ok' || res.success) {
+    const res = await cancelCheckin(
+      props.userData.checkinNonce,
+      explanation,
+      [parseInt(getCheckinListId() || '-1')]
+    );
+    if (res === true) {
       await Swal.fire({
         icon: 'success',
         title: 'Check-in cancelled',
         text: 'Check-in cancelled successfully.'
       });
       emit('cancelled');
+      router.push('/redeem');
     }
   } catch (e: any) {
     await Swal.fire({

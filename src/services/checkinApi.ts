@@ -150,10 +150,11 @@ export async function getApsJoinModule(userId: number) {
 }
 
 
-export async function cancelCheckin(checkinNonce: string, reason: string) {
+export async function cancelCheckin(checkinNonce: string, reason: string, checkinListIds: number[]) {
     const response = await furpanelApi.post("checkin/cancel", {
-        checkinNonce,
-        reason
+        nonce: checkinNonce,
+        explanation: reason,
+        checkinListIds
     });
     return response.data;
 }

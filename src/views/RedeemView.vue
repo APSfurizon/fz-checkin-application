@@ -280,9 +280,7 @@ const handleBack = () => {
           <AppButton :loading="loading" @click="emptyResults(); handleSearch();">Search</AppButton>
         </div>
 
-        <div v-if="loading" class="search-status">Loading...</div>
-
-        <div v-if="results.length > 0" class="redeem-page__filters">
+        <div class="redeem-page__filters">
           <div class="toggle-group">
             <button 
               class="tab-btn" 
@@ -307,6 +305,8 @@ const handleBack = () => {
             </button>
           </div>
         </div>
+
+        <div v-if="loading" class="search-status">Loading...</div>
 
         <div v-if="allResults.length > 0" class="search-results">
           <SearchResultItem 
