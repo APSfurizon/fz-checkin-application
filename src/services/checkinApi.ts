@@ -139,8 +139,8 @@ export async function toggleGadget(checkinId: number) {
     return response.data;
 }
 
-export async function getGadgetUpdates(lastId: number) {
-    const response = await furpanelApi.get("checkin/updates", { params: { lastId } });
+export async function getGadgetUpdates(lastId?: number, prevIds?: number[]) {
+    const response = await furpanelApi.get("checkin/updates", { params: { lastId, prevIds: prevIds?.join(',') } });
     return response.data;
 }
 

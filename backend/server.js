@@ -115,28 +115,44 @@ api.get('/checkin/pending-gadgets', checkAuth, (req, res) => {
 });
 
 api.get('/checkin/updates', checkAuth, (req, res) => {
-    const lastId = Number(req.query.lastId);
-    if (isNaN(lastId)) return res.status(400).json({ success: false, message: 'valid lastId is required' });
-    
-    console.log(`[POLL] Checking updates after ID: ${lastId}`);
-    const data = db.prepare('SELECT * FROM checkins WHERE id > ? ORDER BY id ASC').all(lastId);
-    console.log(`[POLL] Found ${data.length} new items`);
-    
-    res.json({ success: true, data });
+    let updatesData = null;
+    let prevData = null;
+
+    const lastId = Number(req.query.lastId || "asd");
+    if (!isNaN(lastId)) {
+        console.log(`[POLL] Checking updates after ID: ${lastId}`);
+        updatesData = db.prepare('SELECT * FROM checkins WHERE id > ? ORDER BY id ASC').all(lastId);
+        console.log(`[POLL] Found ${updatesData.length} new items`);
+    }
+    let prevIds = req.query.prevIds;
+    if (prevIds) {
+        prevData = {};
+        const checkins = db.prepare('SELECT gadgetCollectedAt, id FROM checkins WHERE id IN (' + prevIds.split(',').map(() => '?').join(',') + ')').all(...prevIds.split(','));
+        checkins.forEach(checkin => {
+            prevData[checkin.id] = checkin.gadgetCollectedAt;
+        });
+    }
+
+    res.json({ success: true, updates: updatesData, isCollected: prevData });
 });
 
 api.put('/checkin/:id/toggle-gadget', checkAuth, (req, res) => {
     const { id } = req.params;
     const checkin = db.prepare('SELECT gadgetCollectedAt FROM checkins WHERE id = ?').get(id);
     if (!checkin) return res.status(404).json({ errors: [{ message: 'Not found' }] });
-    const newValue = checkin.gadgetCollectedAt ? null : new Date().toISOString().replace('T', ' ').split('.')[0];
-    db.prepare('UPDATE checkins SET gadgetCollectedAt = ? WHERE id = ?').run(newValue, id);
-    res.json({ success: true, collectedAt: newValue });
+    if (checkin.gadgetCollectedAt) {
+        db.prepare('UPDATE checkins SET gadgetCollectedAt = NULL WHERE id = ?').run(id);
+    } else {
+        db.prepare('UPDATE checkins SET gadgetCollectedAt = datetime(\'now\') WHERE id = ?').run(id);
+    }
+    const r = db.prepare('SELECT gadgetCollectedAt FROM checkins WHERE id = ?').get(id);
+    res.json({ success: true, collectedAt: r.gadgetCollectedAt });
 });
 
 api.put('/checkin/:id/serve-gadget', checkAuth, (req, res) => {
-    db.prepare('UPDATE checkins SET gadgetCollectedAt = datetime("now") WHERE id = ?').run(req.params.id);
-    res.json({ success: true });
+    db.prepare('UPDATE checkins SET gadgetCollectedAt = datetime(\'now\') WHERE id = ?').run(req.params.id);
+    const r = db.prepare('SELECT gadgetCollectedAt FROM checkins WHERE id = ?').get(req.params.id);
+    res.json({ success: true, collectedAt: r.gadgetCollectedAt });
 });
 
 api.get('/checkin/lists', async (req, res) => {
@@ -294,11 +310,33 @@ api.post('/checkin/redeem', async (req, res) => {
                     propicUrl, operatorId,
                 );
                 console.log(`[DB INSERT] Check-in saved with ID: ${result.lastInsertRowid}`);
+                fzRes.data.checkinApplicationId = result.lastInsertRowid; // Return the ID of the check-in application to the client
             } catch (dbErr) {
                 console.error("[DB ERROR] Failed to save check-in:", dbErr.message);
                 // We don't fail the request because the remote redeem succeeded
             }
+        } else {
+            try {
+                console.error("[REDEEM FAILED] Trying to load checkin application id anyway");
+                const r = db.prepare('SELECT id FROM checkins WHERE orderCode = ?').get(fzRes.data.orderCode || '');
+                fzRes.data.checkinApplicationId = r?.id || null;
+            } catch (dbErr) {
+                console.error("[DB ERROR] Failed to retrieve checkin application id while checkin in:", dbErr.message);
+                // We don't fail the request because the remote redeem succeeded
+            }
         }
+        console.log(fzRes.data.checkinApplicationId)
+        if (fzRes.data.checkinApplicationId) {
+            console.log("diocane")
+            try {
+                const r = db.prepare('SELECT gadgetCollectedAt FROM checkins WHERE id = ?').get(fzRes.data.checkinApplicationId);
+                fzRes.data.gadgetCollectedAt = r?.gadgetCollectedAt || null;
+            } catch (dbErr) {
+                console.error("[DB ERROR] Failed to retrieve gadget collection status while checkin in:", dbErr.message);
+                // We don't fail the request because the remote redeem succeeded
+            }
+        }
+
         res.status(fzRes.status).json(fzRes.data);
     } catch (err) {
         console.error("[REDEEM ERROR]", err.message);

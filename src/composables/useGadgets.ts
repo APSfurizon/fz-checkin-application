@@ -62,44 +62,52 @@ export function useGadgets() {
   };
 
   const checkForUpdates = async () => {
-    // Filter out items without ID (added via addGadget predicting state)
     const validIds = gadgetCheckins.value
-      .map((c) => Number(c.id))
-      .filter((id) => !isNaN(id));
+                                   .map((c) => Number(c.id))
+                                   .filter((id) => !isNaN(id));
 
     if (validIds.length === 0) {
       await loadGadgets();
       return;
     }
 
+    const uncollectedIds = gadgetCheckins.value
+      .filter((c) => !c.gadgetCollectedAt)
+      .map((c) => Number(c.id))
+      .filter((id) => !isNaN(id));
+
     const lastId = Math.max(...validIds);
     try {
-      const response = await getGadgetUpdates(lastId);
-      if (response.success && response.data.length > 0) {
-        const processedNew = processItems(response.data).map((item) => ({
-          ...item,
-          newUntil: Date.now() + 10000,
-        }));
+      const response = await getGadgetUpdates(lastId, uncollectedIds);
+      if (response.success) {
+        if (response.updates.length > 0) {
+          const processedNew = processItems(response.updates).map((item) => ({
+            ...item,
+            newUntil: Date.now() + 10000,
+          }));
 
-        if (processedNew.length > 0) {
-          const currentIds = new Set(gadgetCheckins.value.map((c) => c.id));
-          const trulyNew = processedNew.filter(
-            (item: any) => !currentIds.has(item.id),
-          );
-
-          if (trulyNew.length > 0) {
-            // Remove the temporary item added by addGadget if it now exists with an ID
-            const orderCodesToReplace = new Set(trulyNew.map(n => n.orderCode));
-            gadgetCheckins.value = gadgetCheckins.value.filter(c => 
-              c.id !== undefined || !orderCodesToReplace.has(c.orderCode)
+          if (processedNew.length > 0) {
+            const currentIds = new Set(gadgetCheckins.value.map((c) => c.id));
+            const trulyNew = processedNew.filter(
+              (item: any) => !currentIds.has(item.id),
             );
 
-            gadgetCheckins.value = [
-              ...trulyNew,
-              ...gadgetCheckins.value,
-            ].sort((a, b) => a.id - b.id);
-            playSound();
+            if (trulyNew.length > 0) {
+              gadgetCheckins.value = [
+                ...trulyNew,
+                ...gadgetCheckins.value,
+              ].sort((a, b) => a.id - b.id);
+              playSound();
+            }
           }
+        }
+        if (response.isCollected) {
+          Object.entries(response.isCollected).forEach(([id, collected]) => {
+            if (collected) {
+              console.log(`[useGadgets] Gadget ${id} has been collected by someone else, updating status...`);
+              updateGadgetStatus(Number(id), collected);
+            }
+          });
         }
       }
     } catch (e) {
@@ -116,35 +124,6 @@ export function useGadgets() {
   const stopPolling = () => {
     pollingActive.value = false;
     if (pollInterval) clearInterval(pollInterval);
-  };
-
-  const addGadget = (item: any) => {
-    if (!item) return;
-    const gadgetList = item.gadgets
-      ? typeof item.gadgets === "string"
-        ? JSON.parse(item.gadgets)
-        : item.gadgets
-      : [];
-
-    if (gadgetList.length === 0) return;
-
-    const newItem = {
-      ...item,
-      gadgetList,
-      newUntil: Date.now() + 10000,
-    };
-
-    // Check by orderCode as well since ID might be missing initially
-    if (
-      !gadgetCheckins.value.some(
-        (c) =>
-          (c.id !== undefined && c.id === newItem.id) ||
-          (c.orderCode === newItem.orderCode &&
-            c.firstName === newItem.firstName),
-      )
-    ) {
-      gadgetCheckins.value = [newItem, ...gadgetCheckins.value];
-    }
   };
 
   const updateGadgetStatus = (id: number, collectedAt: any) => {
@@ -164,7 +143,6 @@ export function useGadgets() {
     error,
     volume,
     loadGadgets,
-    addGadget,
     updateGadgetStatus,
     startPolling,
     stopPolling,

@@ -3,7 +3,6 @@ import { ref, onMounted, onUnmounted, computed, watch, useTemplateRef } from 'vu
 import Swal from 'sweetalert2';
 import { useRouter } from 'vue-router';
 import { searchCheckins, redeemCheckin, getCheckinListId, getOperatorId, getUserInfo, getCheckinListName } from '@/services/checkinApi';
-import { useGadgets } from '@/composables/useGadgets';
 import AppInput from '@/components/atoms/AppInput.vue';
 import AppButton from '@/components/atoms/AppButton.vue';
 import SearchResultItem from '@/components/molecules/SearchResultItem.vue';
@@ -23,7 +22,6 @@ const error = ref('');
 const errorCode = ref('');
 const requestId = ref('');
 const listId = Number(getCheckinListId());
-const { addGadget } = useGadgets();
 const nextPage = ref<number | null>(null);
 
 const allResults = computed(() => {
@@ -45,8 +43,6 @@ const redeemSecret = async () => {
       operatorId: getOperatorId() || undefined,
       checkinType: checkinType.value
     });
-    
-    addGadget(data);
     
     checkinData.value = data;
     router.push(`/redeem/${data.user.userId}`);
@@ -201,9 +197,7 @@ const confirmRedeem = async (result: any) => {
       operatorId: getOperatorId() || undefined,
       checkinType: checkinType.value
     });
-    
-    addGadget(data);
-    
+        
     // Update the item in results to show it's now checked in
     const index = results.value.findIndex(r => r.checkinSecret === result.checkinSecret);
     if (index !== -1) {

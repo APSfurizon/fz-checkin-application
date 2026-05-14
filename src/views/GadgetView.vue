@@ -2,11 +2,10 @@
 import { onMounted, onUnmounted, computed, ref } from 'vue';
 import Swal from 'sweetalert2';
 import { useRouter } from 'vue-router';
-import { toggleGadget, getUserInfo, getCheckinListName, getCheckinListId } from '@/services/checkinApi';
+import { toggleGadget, getUserInfo } from '@/services/checkinApi';
 import { useGadgets } from '@/composables/useGadgets';
 import AppButton from '@/components/atoms/AppButton.vue';
 import AppInput from '@/components/atoms/AppInput.vue';
-import AppBadge from '@/components/atoms/AppBadge.vue';
 import ErrorModal from '@/components/organisms/ErrorModal.vue';
 
 const router = useRouter();
@@ -103,7 +102,7 @@ onUnmounted(() => {
         <div class="search-container">
           <AppInput v-model="searchQuery" placeholder="Search fursona, name or order..." class="compact-search" />
         </div>
-        <AppButton size="sm" @click="loadGadgets">Refresh</AppButton>
+        <AppButton size="sm" @click="loadGadgets">FULL Refresh</AppButton>
       </div>
     </header>
 

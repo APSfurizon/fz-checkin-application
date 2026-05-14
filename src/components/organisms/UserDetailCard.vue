@@ -4,7 +4,8 @@ import { computed, watch } from 'vue';
 import Swal from 'sweetalert2';
 import AppBadge from '../atoms/AppBadge.vue';
 import AppButton from '../atoms/AppButton.vue';
-import { getOperatorId, cancelCheckin, getApsJoinModule, printBadge, getCheckinListId } from '@/services/checkinApi';
+import { useGadgets } from '@/composables/useGadgets';
+import { getOperatorId, cancelCheckin, getApsJoinModule, printBadge, getCheckinListId, serveGadget } from '@/services/checkinApi';
 
 interface Props {
   userData: any;
@@ -13,13 +14,8 @@ const router = useRouter();
 const props = defineProps<Props>();
 const emit = defineEmits(['print-badge', 'cancelled']);
 
-const print = (type: 'standard' | 'fursuit') => {
-  const opId = getOperatorId();
-  const timestamp = Date.now();
-  const orderCode = props.userData.orderCode;
-  const printId = `${orderCode}_${opId}_${type}_${timestamp}`;
-  emit('print-badge', { type, printId });
-};
+const { updateGadgetStatus } = useGadgets();
+
 
 const handleCancel = async () => {
   const explanation = window.prompt('Please provide an explanation for cancelling this check-in:');
@@ -45,6 +41,42 @@ const handleCancel = async () => {
       icon: 'error',
       title: 'Cancellation failed',
       text: 'Failed to cancel check-in: ' + (e.response?.data?.errors?.[0]?.message || e.message)
+    });
+  }
+};
+
+const collectGadgets = async () => {
+    const { isConfirmed } = await Swal.fire({
+    icon: 'warning',
+    title: 'Confirm action',
+    text: `Are you sure you want to mark gadgets as collected?`,
+    showCancelButton: true,
+    confirmButtonText: 'Yes, continue',
+    cancelButtonText: 'No'
+  });
+  if (!isConfirmed) return;
+  try {
+    const response = await serveGadget(props.userData.checkinApplicationId);
+    if (response.success) {
+      updateGadgetStatus(props.userData.checkinApplicationId, response.collectedAt);
+      props.userData.gadgetCollectedAt = response.collectedAt;
+      await Swal.fire({
+        icon: 'success',
+        title: 'Gadgets served',
+        text: 'Gadgets served successfully.'
+      });
+    } else {
+      await Swal.fire({
+        icon: 'error',
+        title: 'Unable to serve gadgets',
+        text: 'Failed to serve gadgets'
+      });
+    }
+  } catch (e: any) {
+    await Swal.fire({
+      icon: 'error',
+      title: 'Unable to serve gadgets',
+      text: 'Failed to serve gadgets: ' + (e.response?.data?.errors?.[0]?.message || e.message)
     });
   }
 };
@@ -450,6 +482,16 @@ if(status.toLowerCase() !== 'ok') {
             </div>
           </div>
         </div>
+        <p></p>
+        <AppButton
+          v-if="!userData.gadgetCollectedAt && userData.checkinApplicationId"
+          variant="entry" 
+          size="sm"
+          @click="collectGadgets"
+        >
+          Mark gadgets as collected
+      </AppButton>
+      <AppBadge v-if="userData.gadgetCollectedAt" variant="warning">Gadgets already collected</AppBadge>
       </section>
     </div>
 
