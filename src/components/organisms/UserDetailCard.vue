@@ -238,7 +238,7 @@ if(status.toLowerCase() !== 'ok') {
           </div>
           <AppBadge v-if="userData.user?.staffer || userData.staffer" variant="success">STAFF</AppBadge>
           <AppBadge v-if="userData.user?.dailyTicket || userData.dailyTicket" variant="info">DAILY</AppBadge>
-          <AppBadge variant="default" class="status-badge" :class="{'status-badge--ok': userData.status.toLowerCase() === 'ok' || !userData.status}">Check-in status: {{ userData.status || 'OK' }}</AppBadge>
+          <AppBadge variant="default" class="status-badge" :class="{'status-badge--ok': userData.status.toLowerCase() === 'ok' || !userData.status}">Check-in/out status: {{ userData.status || 'OK' }}</AppBadge>
         </div>
       </div>
       <div class="user-card__order-info">

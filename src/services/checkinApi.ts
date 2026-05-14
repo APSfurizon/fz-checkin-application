@@ -117,7 +117,7 @@ export async function getCheckinLogs(params: {
 export async function redeemCheckin(data: {
     checkinListIds: number[];
     secret: string;
-    checkinType: "ENTRY" | "EXIT";
+    checkinType: "entry" | "exit";
     operatorId?: number;
 }) {
     const response = await furpanelApi.post("checkin/redeem", data);

@@ -14,7 +14,7 @@ const router = useRouter();
 const query = ref('');
 const results = ref<any[]>([]);
 const filter = ref<'all' | 'pending' | 'checked-in'>('all');
-const checkinType = ref<'ENTRY' | 'EXIT'>('ENTRY');
+const checkinType = ref<'entry' | 'exit'>('entry');
 const secret = ref<string>('');
 const secretRef = useTemplateRef<HTMLInputElement>('secretRef');
 const checkinData = ref<any>(null);
@@ -146,7 +146,7 @@ onUnmounted(() => {
 const confirmRedeem = async (result: any) => {
   const displayName = result.user?.fursonaName || result.name;
   
-  if (checkinType.value === 'ENTRY') {
+  if (checkinType.value === 'entry') {
     if (result.hasCheckedIn) {
       const { isConfirmed } = await Swal.fire({
         icon: 'warning',
@@ -207,7 +207,7 @@ const confirmRedeem = async (result: any) => {
     // Update the item in results to show it's now checked in
     const index = results.value.findIndex(r => r.checkinSecret === result.checkinSecret);
     if (index !== -1) {
-      results.value[index] = { ...results.value[index], hasCheckedIn: checkinType.value === 'ENTRY' ? true : false };
+      results.value[index] = { ...results.value[index], hasCheckedIn: checkinType.value === 'entry' ? true : false };
     }
     
     checkinData.value = data;
@@ -220,7 +220,7 @@ const confirmRedeem = async (result: any) => {
 };
 
 const toggleEntryExit = () => {
-  checkinType.value = checkinType.value === 'ENTRY' ? 'EXIT' : 'ENTRY';
+  checkinType.value = checkinType.value === 'entry' ? 'exit' : 'entry';
 };
 
 const emptyResults = () => {
@@ -257,7 +257,7 @@ const handleBack = () => {
       <div v-if="!checkinData" class="search-section">
         <div class="search-bar">
           <AppButton
-            :variant="checkinType === 'ENTRY' ? 'entry' : 'exit'"
+            :variant="checkinType"
             :style="{'min-width': '10%'}"
             @click="toggleEntryExit"
           >{{ checkinType }}</AppButton>
