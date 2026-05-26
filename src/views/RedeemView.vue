@@ -9,6 +9,8 @@ import AppButton from '@/components/atoms/AppButton.vue';
 import SearchResultItem from '@/components/molecules/SearchResultItem.vue';
 import UserDetailCard from '@/components/organisms/UserDetailCard.vue';
 import ErrorModal from '@/components/organisms/ErrorModal.vue';
+import { useAuth } from '@/composables/useAuth';
+const { logout } = useAuth();
 
 const router = useRouter();
 const query = ref('');
@@ -304,6 +306,7 @@ const handleBack = () => {
       :code="errorCode"
       :requestId="requestId"
       @close="clearError" 
+      @logout="logout" 
     />
   </div>
 </template>

@@ -9,8 +9,14 @@ interface Props {
   requestId?: string;
 }
 
-defineProps<Props>();
-defineEmits(['close']);
+import { computed } from 'vue';
+const props = defineProps<Props>();
+const emit = defineEmits(['close', 'logout']);
+
+// Mostra il bottone logout se il codice è 401 o UNAUTHENTICATED
+const showLogout = computed(() => {
+  return props.code === '401' || props.code === 'UNAUTHENTICATED';
+});
 </script>
 
 <template>
@@ -30,6 +36,7 @@ defineEmits(['close']);
         </div>
         <div class="modal__footer">
           <AppButton variant="primary" @click="$emit('close')">Close</AppButton>
+          <AppButton v-if="showLogout" variant="danger" @click="$emit('logout')" style="margin-left: 8px;">Logout</AppButton>
         </div>
       </div>
     </div>
