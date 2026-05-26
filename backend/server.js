@@ -6,6 +6,7 @@ const path = require('path');
 
 const app = express();
 const port = 3000;
+const host = '0.0.0.0';
 
 app.use(cors());
 app.use(express.json());
@@ -20,16 +21,6 @@ const db = new Database(dbPath, { verbose: console.log });
 const schemaPath = path.join(__dirname, 'schema.sql');
 const schema = fs.readFileSync(schemaPath, 'utf8');
 db.exec(schema);
-
-try {
-    const tableInfo = db.prepare("PRAGMA table_info(checkins)").all();
-    if (!tableInfo.some(col => col.name === 'propicUrl')) {
-        console.log('Migrazione: aggiunta colonna propicUrl...');
-        db.prepare("ALTER TABLE checkins ADD COLUMN propicUrl TEXT NULL").run();
-    }
-} catch (e) {
-    console.error("Migration error:", e.message);
-}
 
 //Needs trailing / !!
 const BASE_URL = "https://fzbe.furizon.net/api/v1/";
@@ -124,28 +115,44 @@ api.get('/checkin/pending-gadgets', checkAuth, (req, res) => {
 });
 
 api.get('/checkin/updates', checkAuth, (req, res) => {
-    const lastId = Number(req.query.lastId);
-    if (isNaN(lastId)) return res.status(400).json({ success: false, message: 'valid lastId is required' });
-    
-    console.log(`[POLL] Checking updates after ID: ${lastId}`);
-    const data = db.prepare('SELECT * FROM checkins WHERE id > ? ORDER BY id ASC').all(lastId);
-    console.log(`[POLL] Found ${data.length} new items`);
-    
-    res.json({ success: true, data });
+    let updatesData = null;
+    let prevData = null;
+
+    const lastId = Number(req.query.lastId || "asd");
+    if (!isNaN(lastId)) {
+        console.log(`[POLL] Checking updates after ID: ${lastId}`);
+        updatesData = db.prepare('SELECT * FROM checkins WHERE id > ? ORDER BY id ASC').all(lastId);
+        console.log(`[POLL] Found ${updatesData.length} new items`);
+    }
+    let prevIds = req.query.prevIds;
+    if (prevIds) {
+        prevData = {};
+        const checkins = db.prepare('SELECT gadgetCollectedAt, id FROM checkins WHERE id IN (' + prevIds.split(',').map(() => '?').join(',') + ')').all(...prevIds.split(','));
+        checkins.forEach(checkin => {
+            prevData[checkin.id] = checkin.gadgetCollectedAt;
+        });
+    }
+
+    res.json({ success: true, updates: updatesData, isCollected: prevData });
 });
 
 api.put('/checkin/:id/toggle-gadget', checkAuth, (req, res) => {
     const { id } = req.params;
     const checkin = db.prepare('SELECT gadgetCollectedAt FROM checkins WHERE id = ?').get(id);
     if (!checkin) return res.status(404).json({ errors: [{ message: 'Not found' }] });
-    const newValue = checkin.gadgetCollectedAt ? null : new Date().toISOString().replace('T', ' ').split('.')[0];
-    db.prepare('UPDATE checkins SET gadgetCollectedAt = ? WHERE id = ?').run(newValue, id);
-    res.json({ success: true, collectedAt: newValue });
+    if (checkin.gadgetCollectedAt) {
+        db.prepare('UPDATE checkins SET gadgetCollectedAt = NULL WHERE id = ?').run(id);
+    } else {
+        db.prepare('UPDATE checkins SET gadgetCollectedAt = datetime(\'now\') WHERE id = ?').run(id);
+    }
+    const r = db.prepare('SELECT gadgetCollectedAt FROM checkins WHERE id = ?').get(id);
+    res.json({ success: true, collectedAt: r.gadgetCollectedAt });
 });
 
 api.put('/checkin/:id/serve-gadget', checkAuth, (req, res) => {
-    db.prepare('UPDATE checkins SET gadgetCollectedAt = datetime("now") WHERE id = ?').run(req.params.id);
-    res.json({ success: true });
+    db.prepare('UPDATE checkins SET gadgetCollectedAt = datetime(\'now\') WHERE id = ?').run(req.params.id);
+    const r = db.prepare('SELECT gadgetCollectedAt FROM checkins WHERE id = ?').get(req.params.id);
+    res.json({ success: true, collectedAt: r.gadgetCollectedAt });
 });
 
 api.get('/checkin/lists', async (req, res) => {
@@ -212,6 +219,7 @@ api.post('/badge/print', async (req, res) => {
             }
             default: return res.status(400).json({ success: false, message: 'Invalid badge type' });
         }
+        console.log("[BADGE PRINT] Retrieved badge HTML, sending to print proxy...");
         const printId = requestBody.operatorId + "-" + requestBody.type + "-" + joinedIds;
         const printRes = await printProxy(html, requestBody.operatorId, printId, requestBody.type);
         if (printRes.status !== 200 && printRes.status !== 204) {
@@ -233,35 +241,110 @@ api.post('/checkin/redeem', async (req, res) => {
             console.log(`[REDEEM SUCCESS] Order: ${d.orderCode}, User: ${d.user?.fursonaName}`);
             
             try {
-                const stmt = db.prepare(`INSERT INTO checkins (checkinId, checkinNonce, checkinListId, fursonaName, firstName, lastName, orderSerial, orderCode, gadgets, shirtSize, portaBadgeType, lanyardType, hasFursuitBadge, shouldPrintApsJoinModule, propicUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+                const stmt = db.prepare(`
+                    INSERT INTO 
+                    checkins (
+                        userId,
+                        checkinNonce,
+                        checkinListId,
+                        fursonaName,
+                        firstName,
+                        lastName,
+                        orderSerial,
+                        orderCode,
+                        gadgets,
+                        shirtSize,
+                        portaBadgeType,
+                        lanyardType,
+                        hasFursuitBadge,
+                        shouldPrintApsJoinModule,
+                        propicUrl,
+                        operatorId
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(orderCode) DO UPDATE SET
+                        userId=?,
+                        checkinNonce=?,
+                        checkinListId=?,
+                        fursonaName=?,
+                        firstName=?,
+                        lastName=?,
+                        orderSerial=?,
+                        gadgets=?,
+                        shirtSize=?,
+                        portaBadgeType=?,
+                        lanyardType=?,
+                        hasFursuitBadge=?,
+                        shouldPrintApsJoinModule=?,
+                        propicUrl=?,
+                        operatorId=?
+                `);
+                const userId = d.user?.userId
+                const checkinNonce = d.checkinNonce
+                const checkinListId = req.body.checkinListIds[0]           
+                const fursonaName = d.user?.fursonaName || '-'
+                const firstName = d.firstName || ''
+                const lastName = d.lastName || ''
+                const orderSerial = d.orderSerial || 0
+                const orderCode = d.orderCode || ''
+                const gadgets = JSON.stringify(d.gadgets || [])
+                const shirtSize = d.shirtSize || ''
+                const portaBadgeType = d.portaBadgeType || ''
+                const lanyardType = d.lanyardType || ''
+                const hasFursuitBadge = d.hasFursuitBadge ? 1 : 0
+                const shouldPrintApsJoinModule = d.shouldPrintApsJoinModule ? 1 : 0
+                const propicUrl =  d.user?.propic?.mediaUrl || null
+                const operatorId = req.body.operatorId || -1 
                 const result = stmt.run(
-                    d.user?.userId, 
-                    d.checkinNonce, 
-                    req.body.checkinListIds[0], 
-                    d.user?.fursonaName || 'Unknown', 
-                    d.firstName || '', 
-                    d.lastName || '', 
-                    d.orderSerial || 0, 
-                    d.orderCode || '', 
-                    JSON.stringify(d.gadgets || []), 
-                    d.shirtSize || '', 
-                    d.portaBadgeType || '', 
-                    d.lanyardType || '', 
-                    d.hasFursuitBadge ? 1 : 0, 
-                    d.shouldPrintApsJoinModule ? 1 : 0, 
-                    d.user?.propic?.mediaUrl || null
+                    userId, checkinNonce, checkinListId, 
+                    fursonaName, firstName, lastName, 
+                    orderSerial, orderCode, 
+                    gadgets, shirtSize, portaBadgeType, lanyardType, 
+                    hasFursuitBadge, shouldPrintApsJoinModule, 
+                    propicUrl, operatorId,
+
+                    userId, checkinNonce, checkinListId, 
+                    fursonaName, firstName, lastName, 
+                    orderSerial, 
+                    gadgets, shirtSize, portaBadgeType, lanyardType, 
+                    hasFursuitBadge, shouldPrintApsJoinModule, 
+                    propicUrl, operatorId,
                 );
                 console.log(`[DB INSERT] Check-in saved with ID: ${result.lastInsertRowid}`);
+                fzRes.data.checkinApplicationId = result.lastInsertRowid; // Return the ID of the check-in application to the client
             } catch (dbErr) {
                 console.error("[DB ERROR] Failed to save check-in:", dbErr.message);
                 // We don't fail the request because the remote redeem succeeded
             }
+        } else {
+            try {
+                console.error("[REDEEM FAILED] Trying to load checkin application id anyway");
+                const r = db.prepare('SELECT id FROM checkins WHERE orderCode = ?').get(fzRes.data.orderCode || '');
+                fzRes.data.checkinApplicationId = r?.id || null;
+            } catch (dbErr) {
+                console.error("[DB ERROR] Failed to retrieve checkin application id while checkin in:", dbErr.message);
+                // We don't fail the request because the remote redeem succeeded
+            }
         }
+        if (fzRes.data.checkinApplicationId) {
+            try {
+                const r = db.prepare('SELECT gadgetCollectedAt FROM checkins WHERE id = ?').get(fzRes.data.checkinApplicationId);
+                fzRes.data.gadgetCollectedAt = r?.gadgetCollectedAt || null;
+            } catch (dbErr) {
+                console.error("[DB ERROR] Failed to retrieve gadget collection status while checkin in:", dbErr.message);
+                // We don't fail the request because the remote redeem succeeded
+            }
+        }
+
         res.status(fzRes.status).json(fzRes.data);
     } catch (err) {
         console.error("[REDEEM ERROR]", err.message);
         res.status(500).json({ success: false, message: err.message });
     }
+});
+
+api.post('/checkin/cancel', async (req, res) => {
+    const fzRes = await fzPost("checkin/cancel", req.body, req.headers);
+    res.status(fzRes.status).json(fzRes.data);
 });
 
 api.post('/proxy/authentication/login', async (req, res) => {
@@ -291,8 +374,8 @@ app.use((req, res) => {
     res.status(404).send(`Cannot ${req.method} ${req.url}`);
 });
 
-app.listen(port, () => {
+app.listen(port, host, () => {
     console.log('==========================================');
-    console.log(` SERVER IN ASCOLTO SU http://localhost:${port}`);
+    console.log(` SERVER IN ASCOLTO SU http://${host}:${port}`);
     console.log('==========================================');
 });

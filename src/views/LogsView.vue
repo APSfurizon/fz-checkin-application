@@ -165,8 +165,9 @@ const handleBack = () => {
         </div>
 
         <div v-if="nextPage" class="load-more">
-          <AppButton :loading="loading" variant="secondary" @click="handleSearch()">Load more</AppButton>
+          <AppButton :loading="loading" variant="secondary" @click="handleSearch()">Load more logs</AppButton>
         </div>
+        <p></p>
       </section>
     </main>
 

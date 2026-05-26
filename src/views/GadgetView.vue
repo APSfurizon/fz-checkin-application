@@ -2,11 +2,10 @@
 import { onMounted, onUnmounted, computed, ref } from 'vue';
 import Swal from 'sweetalert2';
 import { useRouter } from 'vue-router';
-import { toggleGadget, getUserInfo, getCheckinListName, getCheckinListId } from '@/services/checkinApi';
+import { toggleGadget, getUserInfo } from '@/services/checkinApi';
 import { useGadgets } from '@/composables/useGadgets';
 import AppButton from '@/components/atoms/AppButton.vue';
 import AppInput from '@/components/atoms/AppInput.vue';
-import AppBadge from '@/components/atoms/AppBadge.vue';
 import ErrorModal from '@/components/organisms/ErrorModal.vue';
 
 const router = useRouter();
@@ -103,7 +102,7 @@ onUnmounted(() => {
         <div class="search-container">
           <AppInput v-model="searchQuery" placeholder="Search fursona, name or order..." class="compact-search" />
         </div>
-        <AppButton size="sm" @click="loadGadgets">Refresh</AppButton>
+        <AppButton size="sm" @click="loadGadgets">FULL Refresh</AppButton>
       </div>
     </header>
 
@@ -165,7 +164,8 @@ onUnmounted(() => {
           <div class="compact-card__main">
             <div class="user-row">
               <h3 class="fursona-name">{{ item.fursonaName }}</h3>
-              <span class="order-code">{{ item.orderCode }}</span>
+              <!-- <span class="order-code">{{ item.orderCode }}</span> -->
+              <span class="order-code">Order serial: {{ item.orderSerial }}</span>
               <div :class="['status-badge-top', item.gadgetCollectedAt ? 'status--collected' : 'status--pending']">
                 {{ item.gadgetCollectedAt ? 'DONE' : 'PENDING' }}
               </div>

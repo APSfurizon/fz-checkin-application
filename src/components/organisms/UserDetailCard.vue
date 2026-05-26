@@ -1,48 +1,82 @@
 <script setup lang="ts">
+import { useRouter } from 'vue-router';
 import { computed, watch } from 'vue';
 import Swal from 'sweetalert2';
 import AppBadge from '../atoms/AppBadge.vue';
 import AppButton from '../atoms/AppButton.vue';
-import { getOperatorId, cancelCheckin, getApsJoinModule, printBadge } from '@/services/checkinApi';
+import { useGadgets } from '@/composables/useGadgets';
+import { getOperatorId, cancelCheckin, getApsJoinModule, printBadge, getCheckinListId, serveGadget } from '@/services/checkinApi';
 
 interface Props {
   userData: any;
 }
-
+const router = useRouter();
 const props = defineProps<Props>();
 const emit = defineEmits(['print-badge', 'cancelled']);
 
-const print = (type: 'standard' | 'fursuit') => {
-  const opId = getOperatorId();
-  const timestamp = Date.now();
-  const orderCode = props.userData.orderCode;
-  const printId = `${orderCode}_${opId}_${type}_${timestamp}`;
-  emit('print-badge', { type, printId });
-};
+const { updateGadgetStatus } = useGadgets();
+
 
 const handleCancel = async () => {
   const explanation = window.prompt('Please provide an explanation for cancelling this check-in:');
   if (explanation === null) return;
 
   try {
-    const res = await cancelCheckin({
-      checkinNonce: props.userData.checkinNonce,
-      checkinListId: props.userData.checkinListId,
-      explanation
-    });
-    if (res.status === 'ok' || res.success) {
+    const res = await cancelCheckin(
+      props.userData.checkinNonce,
+      explanation,
+      [parseInt(getCheckinListId() || '-1')]
+    );
+    if (res === true) {
       await Swal.fire({
         icon: 'success',
         title: 'Check-in cancelled',
         text: 'Check-in cancelled successfully.'
       });
       emit('cancelled');
+      router.push('/redeem');
     }
   } catch (e: any) {
     await Swal.fire({
       icon: 'error',
       title: 'Cancellation failed',
       text: 'Failed to cancel check-in: ' + (e.response?.data?.errors?.[0]?.message || e.message)
+    });
+  }
+};
+
+const collectGadgets = async () => {
+    const { isConfirmed } = await Swal.fire({
+    icon: 'warning',
+    title: 'Confirm action',
+    text: `Are you sure you want to mark gadgets as collected?`,
+    showCancelButton: true,
+    confirmButtonText: 'Yes, continue',
+    cancelButtonText: 'No'
+  });
+  if (!isConfirmed) return;
+  try {
+    const response = await serveGadget(props.userData.checkinApplicationId);
+    if (response.success) {
+      updateGadgetStatus(props.userData.checkinApplicationId, response.collectedAt);
+      props.userData.gadgetCollectedAt = response.collectedAt;
+      await Swal.fire({
+        icon: 'success',
+        title: 'Gadgets served',
+        text: 'Gadgets served successfully.'
+      });
+    } else {
+      await Swal.fire({
+        icon: 'error',
+        title: 'Unable to serve gadgets',
+        text: 'Failed to serve gadgets'
+      });
+    }
+  } catch (e: any) {
+    await Swal.fire({
+      icon: 'error',
+      title: 'Unable to serve gadgets',
+      text: 'Failed to serve gadgets: ' + (e.response?.data?.errors?.[0]?.message || e.message)
     });
   }
 };
@@ -61,7 +95,7 @@ const printUserBadge = async () => {
 
 const printFursuitBadge = async () => {
     const opId = getOperatorId();
-    let ids = [];
+    let ids: number[] = [];
     props.userData.fursuits.forEach((f: any) => {
         ids.push(f.fursuit.id);
     });
@@ -80,6 +114,14 @@ const goToApsModule = async () => {
 
   try {
     const res = await getApsJoinModule(userId);
+    if (res.errors) {
+      await Swal.fire({
+        icon: 'error',
+        title: 'APS module print failed',
+        text: 'Failed to load APS module: ' + (res.errors[0]?.message || 'Unknown error')
+      });
+      return;
+    }
 
     const html = res;
 
@@ -146,23 +188,24 @@ const reverseDailyDays = computed(() => {
 // LANYARD COLORS CONFIGURATION
 const getLanyardColor = (type: string) => {
   const t = type?.toUpperCase() || '';
-  if (t.includes('MAIN') || t.includes('SECURITY')) return '#ff4757';
-  if (t.includes('STAFF')) return '#70a1ff';
-  if (t.includes('DAILY')) return '#ffffff';
-  if (t.includes('ATTENDEE')) return '#2ed573';
-  if (t.includes('SUPER_SPONSOR')) return '#ffa502';
-  if (t.includes('SPONSOR')) return '#a29bfe';
-  if (t.includes('ULTRA_SPONSOR') || t.includes('EXPLORER')) return '#eccc68';
+  console.log(t);
+  if (t === 'MAIN_STAFF' || t === 'SECURITY_STAFF') return '#ff4757';
+  if (t === 'JUNIOR_STAFF') return '#70a1ff';
+  if (t === 'DAILY_BADGE') return '#ffffff';
+  if (t === 'NORMAL_BADGE') return '#2ed573';
+  if (t === 'SUPER_SPONSOR') return '#ffa502';
+  if (t === 'NORMAL_SPONSOR') return '#a29bfe';
+  if (t === 'ULTRA_SPONSOR') return '#eccc68';
   return '#a4b0be';
 };
 
 // PORTABADGE COLORS CONFIGURATION
 const getBadgeHolderColor = (type: string) => {
   const t = type?.toUpperCase() || '';
-  if (t.includes('MAIN') || t.includes('SECURITY')) return '#ff4757';
-  if (t.includes('STAFF')) return '#70a1ff';
-  if (t.includes('FURSUIT')) return '#eccc68';
-  if (t.includes('DAILY')) return '#2ed573';
+  if (t === 'MAIN_AND_SECURITY_STAFF') return '#ff4757';
+  if (t === 'GENERAL_STAFF') return '#70a1ff';
+  if (t === 'FURSUITERS') return '#eccc68';
+  if (t === 'DAILY_ATTENDEES') return '#2ed573';
   return '#2f3542';
 };
 
@@ -235,7 +278,7 @@ if(status.toLowerCase() !== 'ok') {
           </div>
           <AppBadge v-if="userData.user?.staffer || userData.staffer" variant="success">STAFF</AppBadge>
           <AppBadge v-if="userData.user?.dailyTicket || userData.dailyTicket" variant="info">DAILY</AppBadge>
-          <AppBadge variant="default" class="status-badge" :class="{'status-badge--ok': userData.status.toLowerCase() === 'ok' || !userData.status}">Check-in status: {{ userData.status || 'OK' }}</AppBadge>
+          <AppBadge variant="default" class="status-badge" :class="{'status-badge--ok': userData.status.toLowerCase() === 'ok' || !userData.status}">Check-in/out status: {{ userData.status || 'OK' }}</AppBadge>
         </div>
       </div>
       <div class="user-card__order-info">
@@ -447,6 +490,16 @@ if(status.toLowerCase() !== 'ok') {
             </div>
           </div>
         </div>
+        <p></p>
+        <AppButton
+          v-if="!userData.gadgetCollectedAt && userData.checkinApplicationId"
+          variant="entry" 
+          size="sm"
+          @click="collectGadgets"
+        >
+          Mark gadgets as collected
+      </AppButton>
+      <AppBadge v-if="userData.gadgetCollectedAt" variant="warning">Gadgets already collected</AppBadge>
       </section>
     </div>
 

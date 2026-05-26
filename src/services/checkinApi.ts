@@ -117,6 +117,7 @@ export async function getCheckinLogs(params: {
 export async function redeemCheckin(data: {
     checkinListIds: number[];
     secret: string;
+    checkinType: "entry" | "exit";
     operatorId?: number;
 }) {
     const response = await furpanelApi.post("checkin/redeem", data);
@@ -138,21 +139,23 @@ export async function toggleGadget(checkinId: number) {
     return response.data;
 }
 
-export async function getGadgetUpdates(lastId: number) {
-    const response = await furpanelApi.get("checkin/updates", { params: { lastId } });
+export async function getGadgetUpdates(lastId?: number, prevIds?: number[]) {
+    const response = await furpanelApi.get("checkin/updates", { params: { lastId, prevIds: prevIds?.join(',') } });
     return response.data;
 }
 
 export async function getApsJoinModule(userId: number) {
-    const response = await furpanelApi.get("membership/aps-join-module", { params: { userId } });
+    const response = await furpanelApi.get("membership/aps-join-module",
+        { params: { userId }, validateStatus: () => true });
     return response.data;
 }
 
 
-export async function cancelCheckin(checkinNonce: string, reason: string) {
+export async function cancelCheckin(checkinNonce: string, reason: string, checkinListIds: number[]) {
     const response = await furpanelApi.post("checkin/cancel", {
-        checkinNonce,
-        reason
+        nonce: checkinNonce,
+        explanation: reason,
+        checkinListIds
     });
     return response.data;
 }

@@ -3,7 +3,6 @@ import { ref, onMounted, onUnmounted, computed, watch, useTemplateRef } from 'vu
 import Swal from 'sweetalert2';
 import { useRouter } from 'vue-router';
 import { searchCheckins, redeemCheckin, getCheckinListId, getOperatorId, getUserInfo, getCheckinListName } from '@/services/checkinApi';
-import { useGadgets } from '@/composables/useGadgets';
 import AppInput from '@/components/atoms/AppInput.vue';
 import AppButton from '@/components/atoms/AppButton.vue';
 import SearchResultItem from '@/components/molecules/SearchResultItem.vue';
@@ -16,6 +15,7 @@ const router = useRouter();
 const query = ref('');
 const results = ref<any[]>([]);
 const filter = ref<'all' | 'pending' | 'checked-in'>('all');
+const checkinType = ref<'entry' | 'exit'>('entry');
 const secret = ref<string>('');
 const secretRef = useTemplateRef<HTMLInputElement>('secretRef');
 const checkinData = ref<any>(null);
@@ -24,10 +24,7 @@ const error = ref('');
 const errorCode = ref('');
 const requestId = ref('');
 const listId = Number(getCheckinListId());
-const { addGadget } = useGadgets();
-const barcodeBuffer = ref('');
 const nextPage = ref<number | null>(null);
-let lastKeyTime = Date.now();
 
 const allResults = computed(() => {
   //if (filter.value === 'all') return results.value;
@@ -45,10 +42,9 @@ const redeemSecret = async () => {
     const data = await redeemCheckin({
       checkinListIds: [listId],
       secret: secret.value.trim(),
-      operatorId: getOperatorId() || undefined
+      operatorId: getOperatorId() || undefined,
+      checkinType: checkinType.value
     });
-    
-    addGadget(data);
     
     checkinData.value = data;
     router.push(`/redeem/${data.user.userId}`);
@@ -148,28 +144,50 @@ onUnmounted(() => {
 const confirmRedeem = async (result: any) => {
   const displayName = result.user?.fursonaName || result.name;
   
-  if (result.hasCheckedIn) {
-    const { isConfirmed } = await Swal.fire({
-      icon: 'warning',
-      title: 'Checkin anyway?',
-      text: `Are you sure you want to check-in again ${displayName}?`,
-      showCancelButton: true,
-      confirmButtonText: 'Yes, continue',
-      cancelButtonText: 'No'
-    });
-    if (!isConfirmed) return;
-    // Implement cancellation logic if needed, but the user only asked for the message for now
-    // Actually, usually we would call cancelCheckin here.
+  if (checkinType.value === 'entry') {
+    if (result.hasCheckedIn) {
+      const { isConfirmed } = await Swal.fire({
+        icon: 'warning',
+        title: 'Check-in anyway?',
+        text: `Are you sure you want to check-in again ${displayName}?`,
+        showCancelButton: true,
+        confirmButtonText: 'Yes, continue',
+        cancelButtonText: 'No'
+      });
+      if (!isConfirmed) return;
+    } else {
+      const { isConfirmed } = await Swal.fire({
+        icon: 'question',
+        title: 'Perform check-in?',
+        text: `Do you want to perform check-in for ${displayName}?`,
+        showCancelButton: true,
+        confirmButtonText: 'Yes, check-in',
+        cancelButtonText: 'No'
+      });
+      if (!isConfirmed) return;
+    }
   } else {
-    const { isConfirmed } = await Swal.fire({
-      icon: 'question',
-      title: 'Perform check-in?',
-      text: `Do you want to perform check-in for ${displayName}?`,
-      showCancelButton: true,
-      confirmButtonText: 'Yes, check-in',
-      cancelButtonText: 'No'
-    });
-    if (!isConfirmed) return;
+    if (!result.hasCheckedIn) {
+      const { isConfirmed } = await Swal.fire({
+        icon: 'warning',
+        title: 'Check-out anyway?',
+        text: `Are you sure you want to check-out again ${displayName}?`,
+        showCancelButton: true,
+        confirmButtonText: 'Yes, continue',
+        cancelButtonText: 'No'
+      });
+      if (!isConfirmed) return;
+    } else {
+      const { isConfirmed } = await Swal.fire({
+        icon: 'question',
+        title: 'Perform check-out?',
+        text: `Do you want to perform check-out for ${displayName}?`,
+        showCancelButton: true,
+        confirmButtonText: 'Yes, check-out',
+        cancelButtonText: 'No'
+      });
+      if (!isConfirmed) return;
+    }
   }
   
   loading.value = true;
@@ -178,15 +196,14 @@ const confirmRedeem = async (result: any) => {
     const data = await redeemCheckin({
       checkinListIds: [listId],
       secret: result.checkinSecret,
-      operatorId: getOperatorId() || undefined
+      operatorId: getOperatorId() || undefined,
+      checkinType: checkinType.value
     });
-    
-    addGadget(data);
-    
+        
     // Update the item in results to show it's now checked in
     const index = results.value.findIndex(r => r.checkinSecret === result.checkinSecret);
     if (index !== -1) {
-      results.value[index] = { ...results.value[index], hasCheckedIn: true };
+      results.value[index] = { ...results.value[index], hasCheckedIn: checkinType.value === 'entry' ? true : false };
     }
     
     checkinData.value = data;
@@ -196,6 +213,10 @@ const confirmRedeem = async (result: any) => {
   } finally {
     loading.value = false;
   }
+};
+
+const toggleEntryExit = () => {
+  checkinType.value = checkinType.value === 'entry' ? 'exit' : 'entry';
 };
 
 const emptyResults = () => {
@@ -212,6 +233,7 @@ const reset = () => {
 const handleBack = () => {
   if (checkinData.value) {
     checkinData.value = null;
+    router.push(`/redeem`);
   } else {
     router.push('/operator');
   }
@@ -230,6 +252,11 @@ const handleBack = () => {
     <main class="redeem-page__content">
       <div v-if="!checkinData" class="search-section">
         <div class="search-bar">
+          <AppButton
+            :variant="checkinType"
+            :style="{'min-width': '10%'}"
+            @click="toggleEntryExit"
+          >{{ checkinType }}</AppButton>
           <AppInput
             :style="{'-webkit-text-security': 'disc'}"
             ref="secretRef"
@@ -250,9 +277,7 @@ const handleBack = () => {
           <AppButton :loading="loading" @click="emptyResults(); handleSearch();">Search</AppButton>
         </div>
 
-        <div v-if="loading" class="search-status">Loading...</div>
-
-        <div v-if="results.length > 0" class="redeem-page__filters">
+        <div class="redeem-page__filters">
           <div class="toggle-group">
             <button 
               class="tab-btn" 
@@ -277,6 +302,8 @@ const handleBack = () => {
             </button>
           </div>
         </div>
+
+        <div v-if="loading" class="search-status">Loading...</div>
 
         <div v-if="allResults.length > 0" class="search-results">
           <SearchResultItem 

@@ -6,7 +6,7 @@ import AppButton from '@/components/atoms/AppButton.vue';
 import AppInput from '@/components/atoms/AppInput.vue';
 
 const router = useRouter();
-const operatorId = ref(getOperatorId() || '');
+const operatorId = ref(getOperatorId() || -1);
 const listId = ref(getCheckinListId());
 const listName = ref(getCheckinListName());
 
@@ -18,7 +18,7 @@ onMounted(() => {
 
 const proceed = (target: string) => {
   console.log('Navigating to:', target, 'with operator:', operatorId.value);
-  setOperatorId(parseInt(operatorId.value));
+  setOperatorId(operatorId.value);
   router.push(target).catch(err => {
     console.error('Navigation error:', err);
   });

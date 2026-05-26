@@ -1,6 +1,6 @@
 <script setup lang="ts">
 interface Props {
-  variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
+  variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'entry' | 'exit' ;
   size?: 'sm' | 'md' | 'lg';
   type?: 'button' | 'submit' | 'reset';
   disabled?: boolean;
@@ -76,6 +76,28 @@ withDefaults(defineProps<Props>(), {
 
 .button--danger:hover:not(:disabled) {
   background-color: var(--color-error);
+  color: white;
+}
+
+.button--entry {
+  background-color: transparent;
+  color: var(--color-success);
+  border-color: var(--color-success);
+}
+
+.button--entry:hover:not(:disabled) {
+  background-color: var(--color-success);
+  color: white;
+}
+
+.button--exit {
+  background-color: transparent;
+  color: var(--color-warning);
+  border-color: var(--color-warning);
+}
+
+.button--exit:hover:not(:disabled) {
+  background-color: var(--color-warning);
   color: white;
 }
 

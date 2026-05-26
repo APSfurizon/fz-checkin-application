@@ -1,1 +1,1 @@
-import { furpanelApi } from "@services/axiosInstance";
+import furpanelApi from "@services/axiosInstance";
