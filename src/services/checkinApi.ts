@@ -145,7 +145,8 @@ export async function getGadgetUpdates(lastId?: number, prevIds?: number[]) {
 }
 
 export async function getApsJoinModule(userId: number) {
-    const response = await furpanelApi.get("membership/aps-join-module", { params: { userId } });
+    const response = await furpanelApi.get("membership/aps-join-module",
+        { params: { userId }, validateStatus: () => true });
     return response.data;
 }
 

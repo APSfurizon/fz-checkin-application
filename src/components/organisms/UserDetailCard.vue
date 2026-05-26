@@ -114,6 +114,14 @@ const goToApsModule = async () => {
 
   try {
     const res = await getApsJoinModule(userId);
+    if (res.errors) {
+      await Swal.fire({
+        icon: 'error',
+        title: 'APS module print failed',
+        text: 'Failed to load APS module: ' + (res.errors[0]?.message || 'Unknown error')
+      });
+      return;
+    }
 
     const html = res;
 
