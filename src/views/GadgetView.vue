@@ -164,7 +164,8 @@ onUnmounted(() => {
           <div class="compact-card__main">
             <div class="user-row">
               <h3 class="fursona-name">{{ item.fursonaName }}</h3>
-              <span class="order-code">{{ item.orderCode }}</span>
+              <!-- <span class="order-code">{{ item.orderCode }}</span> -->
+              <span class="order-code">Order serial: {{ item.orderSerial }}</span>
               <div :class="['status-badge-top', item.gadgetCollectedAt ? 'status--collected' : 'status--pending']">
                 {{ item.gadgetCollectedAt ? 'DONE' : 'PENDING' }}
               </div>

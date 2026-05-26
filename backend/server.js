@@ -325,9 +325,7 @@ api.post('/checkin/redeem', async (req, res) => {
                 // We don't fail the request because the remote redeem succeeded
             }
         }
-        console.log(fzRes.data.checkinApplicationId)
         if (fzRes.data.checkinApplicationId) {
-            console.log("diocane")
             try {
                 const r = db.prepare('SELECT gadgetCollectedAt FROM checkins WHERE id = ?').get(fzRes.data.checkinApplicationId);
                 fzRes.data.gadgetCollectedAt = r?.gadgetCollectedAt || null;
