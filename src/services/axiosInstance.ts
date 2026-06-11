@@ -2,7 +2,7 @@ import axios from "axios";
 import { getCookie } from "@/utils/cookies";
 
 const furpanelApi = axios.create({
-  baseURL: "http://localhost:3000/api/",
+  baseURL: "http://checkin.localfz.net:3000/api/",
 });
 
 furpanelApi.interceptors.request.use(
