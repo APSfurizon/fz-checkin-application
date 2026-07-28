@@ -156,6 +156,7 @@ const goToApsModule = async () => {
         iframe.contentWindow?.print();
       } finally {
         cleanup();
+        props.userData.shouldPrintApsJoinModule = false;
       }
     };
 
@@ -345,8 +346,7 @@ if(status.toLowerCase() !== 'ok') {
           PRINT FURSUIT BADGE
         </AppButton>
         <AppButton 
-          v-if="userData.shouldPrintApsJoinModule" 
-          variant="primary"
+          :variant="userData.shouldPrintApsJoinModule ? 'primary' : 'ghost'"
           @click="goToApsModule"
         >
           PRINT APS MODULE

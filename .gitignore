@@ -39,3 +39,4 @@ __screenshots__/
 *.timestamp-*-*.mjs
 backend/database.sqlite
 backend/backend.zip
+*.sqlite
