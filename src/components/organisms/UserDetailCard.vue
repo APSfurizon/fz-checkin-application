@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router';
-import { computed, watch } from 'vue';
+import { ref, computed, watch } from 'vue';
 import Swal from 'sweetalert2';
 import AppBadge from '../atoms/AppBadge.vue';
 import AppButton from '../atoms/AppButton.vue';
@@ -13,6 +13,9 @@ interface Props {
 const router = useRouter();
 const props = defineProps<Props>();
 const emit = defineEmits(['print-badge', 'cancelled']);
+
+const isUserBadgePrinted = ref<boolean>(false);
+const isFursuitBadgePrinted = ref<boolean>(false);
 
 const { updateGadgetStatus } = useGadgets();
 
@@ -83,8 +86,9 @@ const collectGadgets = async () => {
 
 
 const printUserBadge = async () => {
-    const opId = getOperatorId();
-    const userId = props.userData.user?.userId || props.userData.userId;
+  const opId = getOperatorId();
+  const userId = props.userData.user?.userId || props.userData.userId;
+  isUserBadgePrinted.value = true;
     const res = await printBadge(opId, [userId], 'USER_BADGE');
     await Swal.fire({
       icon: res.status === 200 ? 'success' : 'error',
@@ -99,6 +103,7 @@ const printFursuitBadge = async () => {
     props.userData.fursuits.forEach((f: any) => {
         ids.push(f.fursuit.id);
     });
+    isFursuitBadgePrinted.value = true;
     const res = await printBadge(opId, ids, 'FURSUIT_BADGE');
     await Swal.fire({
       icon: res.status === 200 ? 'success' : 'error',
@@ -336,10 +341,16 @@ if(status.toLowerCase() !== 'ok') {
       </div>
 
       <div class="print-actions-row">
-        <AppButton variant="primary" size="lg" @click="printUserBadge">PRINT STANDARD BADGE</AppButton>
+        <AppButton 
+          :variant="isUserBadgePrinted ? 'secondary' : 'primary'"
+          size="lg"
+          @click="printUserBadge"
+        >
+          PRINT STANDARD BADGE
+        </AppButton>
         <AppButton 
           v-if="userData.hasFursuitBadge" 
-          variant="primary"
+          :variant="isFursuitBadgePrinted ? 'secondary' : 'primary'"
           size="lg"
           @click="printFursuitBadge"
         >
