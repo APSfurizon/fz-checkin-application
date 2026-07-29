@@ -73,6 +73,16 @@ export interface CheckinResponse {
     portaBadgeType: string;
 }
 
+export interface FursuitUpdatePayload {
+    name: string;
+    species?: string | null;
+    bringToCurrentEvent: boolean;
+    showInFursuitCount: boolean;
+    showOwner: boolean;
+    deleteImage?: boolean;
+    image?: File | null;
+}
+
 export async function login(credentials: { email: string; password: string }) {
     const response = await furpanelApi.post("proxy/authentication/login", credentials);
     return response.data;
@@ -170,6 +180,41 @@ export async function printBadge(operatorId: number, ids: number[], type: "USER_
         }
     );
     return response;
+}
+
+export async function updateFursuitWithImage(fursuitId: number, payload: FursuitUpdatePayload) {
+    const form = new FormData();
+    form.append("name", payload.name);
+    if (payload.species) form.append("species", payload.species);
+    form.append("bring-to-current-event", String(payload.bringToCurrentEvent));
+    form.append("show-in-fursuit-count", String(payload.showInFursuitCount));
+    form.append("show-owner", String(payload.showOwner));
+    form.append("delete-image", String(payload.deleteImage ?? false));
+
+    // deleteImage wins on the backend, so don't waste an upload alongside it.
+    if (!payload.deleteImage && payload.image) {
+        form.append("image", payload.image, payload.image.name);
+    }
+
+    const response = await furpanelApi.post(`proxy/fursuits/${fursuitId}/update-with-image`, form);
+    return response.data;
+}
+
+export async function createFursuitWithImage(userId: number, payload: FursuitUpdatePayload) {
+    const form = new FormData();
+    form.append("name", payload.name);
+    if (payload.species) form.append("species", payload.species);
+    form.append("user-id", String(userId));
+    form.append("bring-to-current-event", String(payload.bringToCurrentEvent ?? false));
+    form.append("show-in-fursuit-count", String(payload.showInFursuitCount ?? true));
+    form.append("show-owner", String(payload.showOwner ?? true));
+
+    if (payload.image) {
+        form.append("image", payload.image, payload.image.name);
+    }
+
+    const response = await furpanelApi.post("proxy/fursuits/add-with-image", form);
+    return response.data;
 }
 
 export function setToken(token: string) {

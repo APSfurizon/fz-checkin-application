@@ -5,7 +5,11 @@ import Swal from 'sweetalert2';
 import AppBadge from '../atoms/AppBadge.vue';
 import AppButton from '../atoms/AppButton.vue';
 import { useGadgets } from '@/composables/useGadgets';
-import { getOperatorId, cancelCheckin, getApsJoinModule, printBadge, getCheckinListId, serveGadget } from '@/services/checkinApi';
+import { getOperatorId, cancelCheckin, getApsJoinModule, printBadge, getCheckinListId, serveGadget, updateFursuitWithImage, createFursuitWithImage } from '@/services/checkinApi';
+
+import FursuitEditModal from './FursuitEditModal.vue';
+import type { FursuitFormResult } from './FursuitEditModal.vue';
+
 
 interface Props {
   userData: any;
@@ -18,6 +22,83 @@ const isUserBadgePrinted = ref<boolean>(false);
 const isFursuitBadgePrinted = ref<boolean>(false);
 
 const { updateGadgetStatus } = useGadgets();
+
+const showFursuitModal = ref(false);
+const editingFursuit = ref<any | null>(null);
+const savingFursuit = ref(false);
+
+const onAddFursuit = () => {
+  editingFursuit.value = null;   // null => create mode
+  showFursuitModal.value = true;
+};
+
+const onEditFursuit = (fursuitData: any) => {
+  editingFursuit.value = fursuitData;
+  showFursuitModal.value = true;
+};
+
+const onFursuitConfirm = async (result: FursuitFormResult) => {
+  savingFursuit.value = true;
+  try {
+    await saveFursuit(result);        // <- the function you'll write
+    showFursuitModal.value = false;
+  } finally {
+    savingFursuit.value = false;
+  }
+};
+
+const saveFursuit = async (result: FursuitFormResult) => {
+if (result.isNew) {
+      const ownerId = result.data.ownerId ?? props.userData.user?.userId;
+      console.log(result);
+      console.log(props.userData)
+      if (!ownerId) throw new Error('Missing the owner of the new fursuit.');
+
+      const created = await createFursuitWithImage(ownerId, {
+        name: result.data.fursuit.name,
+        species: result.data.fursuit.species,
+        bringToCurrentEvent: result.data.bringingToEvent,   // false
+        showInFursuitCount: result.data.showInFursuitCount, // true
+        showOwner: result.data.showOwner,                   // true
+        image: result.propicFile,
+      });
+
+      // The user may have had no fursuits at all — that's the common case here.
+      if (!props.userData.fursuits) props.userData.fursuits = [];
+      props.userData.fursuits.push(created);
+
+    return;
+  }
+
+  const fursuitId = result.data.fursuit.id;
+
+  try {
+    const updated = await updateFursuitWithImage(fursuitId, {
+      name: result.data.fursuit.name,
+      species: result.data.fursuit.species,
+      // Not editable in the modal — send back exactly what came in.
+      bringToCurrentEvent: result.original.bringingToEvent,
+      showInFursuitCount: result.original.showInFursuitCount,
+      showOwner: result.original.showOwner,
+      deleteImage: false,
+      image: result.propicChanged ? result.propicFile : null,
+    });
+
+    // The endpoint returns the fresh FursuitData, so swap it in place
+    // instead of re-fetching the whole check-in.
+    const list = props.userData.fursuits;
+    const index = list?.findIndex((f: any) => f.fursuit?.id === fursuitId) ?? -1;
+    if (list && index > -1) list.splice(index, 1, updated);
+  } catch (e: any) {
+    const message =
+      e?.response?.data?.errors?.[0]?.message ??
+      e?.response?.data?.message ??
+      'Could not update the fursuit.';
+    await Swal.fire({ icon: 'error', title: 'Update failed', text: message });
+    throw e;
+  }
+
+};
 
 
 const handleCancel = async () => {
@@ -101,7 +182,9 @@ const printFursuitBadge = async () => {
     const opId = getOperatorId();
     let ids: number[] = [];
     props.userData.fursuits.forEach((f: any) => {
-        ids.push(f.fursuit.id);
+        if (f.bringingToEvent) {
+          ids.push(f.fursuit.id);
+        }
     });
     isFursuitBadgePrinted.value = true;
     const res = await printBadge(opId, ids, 'FURSUIT_BADGE');
@@ -407,10 +490,25 @@ if(status.toLowerCase() !== 'ok') {
 
       <div class="sub-grid">
         <!-- FURSUITS -->
-        <section v-if="userData.fursuits?.length" class="info-section">
-          <h4 class="info-section__title">Fursuits ({{ userData.fursuits.length }})</h4>
-          <div class="fursuit-list">
-            <div v-for="(f, idx) in userData.fursuits" :key="idx" class="fursuit-item">
+        <section class="info-section">
+          <div class="info-section__header">
+            <h4 class="info-section__title">Fursuits ({{ userData.fursuits?.length || 0 }})</h4>
+            <button
+              type="button"
+              class="icon-btn"
+              title="Add a fursuit"
+              aria-label="Add a fursuit"
+              @click="onAddFursuit"
+            >
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none"
+                  stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+            </button>
+          </div>
+
+          <div v-if="userData.fursuits?.length" class="fursuit-list">
+            <div v-for="f in userData.fursuits" :key="f.fursuit.id" class="fursuit-item">
               <div class="fursuit-item__avatar">
                 <img v-if="f.fursuit?.propic" :src="f.fursuit.propic.mediaUrl" />
                 <div v-else class="avatar-placeholder">{{ f.fursuit?.name?.charAt(0) || '?' }}</div>
@@ -428,8 +526,21 @@ if(status.toLowerCase() !== 'ok') {
                   </AppBadge>
                 </div>
               </div>
+              <button
+                type="button"
+                class="icon-btn icon-btn--edit"
+                :title="`Edit ${f.fursuit?.name}`"
+                :aria-label="`Edit ${f.fursuit?.name}`"
+                @click="onEditFursuit(f)"
+              >
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                </svg>
+              </button>
             </div>
           </div>
+          <p v-else class="fursuit-empty">No fursuits registered.</p>
         </section>
 
         <!-- ROOM DATA -->
@@ -524,6 +635,15 @@ if(status.toLowerCase() !== 'ok') {
         CANCEL CHECK-IN
       </AppButton>
     </div>
+
+    <FursuitEditModal
+      :show="showFursuitModal"
+      :fursuit-data="editingFursuit"
+      :owner-id="userData.userId"
+      :saving="savingFursuit"
+      @close="showFursuitModal = false"
+      @confirm="onFursuitConfirm"
+    />
   </div>
 </template>
 
@@ -1059,5 +1179,55 @@ if(status.toLowerCase() !== 'ok') {
   align-items: center;
   justify-content: center;
   min-height: 120px;
+}
+
+.info-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.info-section__header .info-section__title {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--color-primary);
+  cursor: pointer;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.icon-btn:hover {
+  color: var(--color-primary-hover);
+  background: rgba(255, 71, 87, 0.12);
+}
+
+.icon-btn--edit {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+}
+
+.fursuit-badges {
+  padding-right: 30px;
+}
+
+.fursuit-empty {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  font-style: italic;
 }
 </style>

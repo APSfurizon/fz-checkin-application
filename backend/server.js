@@ -66,6 +66,22 @@ async function fzPost(url, bodyObj, reqHeaders) {
     return await elaborateResponse(response);
 }
 
+async function fzPostMultipart(url, reqHeaders, rawBody) {
+    const headers = {
+        'Authorization': reqHeaders['authorization'],
+        'x-operator-id': reqHeaders['x-operator-id'],
+        'Content-Type': reqHeaders['content-type'],
+        'Referer': "http://furpanel.furizon.net/",
+        'Origin': "https://furpanel.furizon.net"
+    };
+    const response = await fetch(BASE_URL + url, { 
+        method: 'POST',
+        headers,
+        body: rawBody
+    });
+    return await elaborateResponse(response);
+}
+
 async function printProxy(html, operatorID, id, type) {
     const headers = {
         'Authorization': 'Basic ' + Buffer.from(PRINTER_PROXY_AUTH_USER + ":" + PRINTER_PROXY_AUTH_PASS).toString('base64'),
@@ -366,6 +382,30 @@ api.post('/proxy/authentication/login', async (req, res) => {
     }
     res.status(fzResLogin.status).json(fzResLogin.data);
 });
+
+api.post('/proxy/fursuits/:fursuitId/update-with-image',
+    express.raw({ type: 'multipart/form-data', limit: '25mb' }),
+    async (req, res) => {
+        const fzRes = await fzPostMultipart(
+            `fursuits/${req.params.fursuitId}/update-with-image`,
+            req.headers,
+            req.body
+        );
+        res.status(fzRes.status).json(fzRes.data);
+    }
+);
+
+api.post('/proxy/fursuits/add-with-image',
+    express.raw({ type: 'multipart/form-data', limit: '25mb' }),
+    async (req, res) => {
+        const fzRes = await fzPostMultipart(
+            'fursuits/add-with-image',
+            req.headers,
+            req.body
+        );
+        res.status(fzRes.status).json(fzRes.data);
+    }
+);
 
 app.use('/api', api);
 
