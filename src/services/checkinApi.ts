@@ -69,6 +69,8 @@ export interface CheckinResponse {
     orderSerial: number;
     gadgets: Gadget[];
     hasFursuitBadge: boolean;
+    maxFursuitsBroughtToEvent: number;
+    fursuits: any[];
     lanyardType: string;
     portaBadgeType: string;
 }
@@ -215,6 +217,17 @@ export async function createFursuitWithImage(userId: number, payload: FursuitUpd
 
     const response = await furpanelApi.post("proxy/fursuits/add-with-image", form);
     return response.data;
+}
+
+export async function setFursuitsBroughtToEvent(
+    ownerUserId: number,
+    fursuitBroughtToEventMap: Record<number, boolean>
+) {
+    const response = await furpanelApi.post("proxy/fursuits/bringToEvent", {
+        fursuitBroughtToEventMap,
+        ownerUserId
+    });
+    return response.data as boolean;
 }
 
 export function setToken(token: string) {

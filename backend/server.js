@@ -407,6 +407,11 @@ api.post('/proxy/fursuits/add-with-image',
     }
 );
 
+api.post('/proxy/fursuits/bringToEvent', async (req, res) => {
+    const fzRes = await fzPost('fursuits/bringToEvent', req.body, req.headers);
+    res.status(fzRes.status).json(fzRes.data);
+});
+
 app.use('/api', api);
 
 app.use((req, res) => {

@@ -5,7 +5,7 @@ import Swal from 'sweetalert2';
 import AppBadge from '../atoms/AppBadge.vue';
 import AppButton from '../atoms/AppButton.vue';
 import { useGadgets } from '@/composables/useGadgets';
-import { getOperatorId, cancelCheckin, getApsJoinModule, printBadge, getCheckinListId, serveGadget, updateFursuitWithImage, createFursuitWithImage } from '@/services/checkinApi';
+import { getOperatorId, cancelCheckin, getApsJoinModule, printBadge, getCheckinListId, serveGadget, updateFursuitWithImage, createFursuitWithImage, setFursuitsBroughtToEvent } from '@/services/checkinApi';
 
 import FursuitEditModal from './FursuitEditModal.vue';
 import type { FursuitFormResult } from './FursuitEditModal.vue';
@@ -48,7 +48,7 @@ const onFursuitConfirm = async (result: FursuitFormResult) => {
 };
 
 const saveFursuit = async (result: FursuitFormResult) => {
-if (result.isNew) {
+  if (result.isNew) {
       const ownerId = result.data.ownerId ?? props.userData.user?.userId;
       console.log(result);
       console.log(props.userData)
@@ -97,8 +97,150 @@ if (result.isNew) {
     await Swal.fire({ icon: 'error', title: 'Update failed', text: message });
     throw e;
   }
-
 };
+
+/** Working selection, keyed by fursuit id. Diverges from the server until Confirm. */
+const bringingDraft = ref<Record<number, boolean>>({});
+/** Per-fursuit "queue this badge for the next print run". */
+const toPrint = ref<Record<number, boolean>>({});
+const savingBringing = ref(false);
+
+const maxBringable = computed<number>(() => props.userData?.maxFursuitsBroughtToEvent ?? 0);
+
+const fursuitList = computed<any[]>(() => props.userData?.fursuits ?? []);
+
+const bringingCount = computed(
+  () => fursuitList.value.filter((f) => bringingDraft.value[f.fursuit.id]).length
+);
+
+/** True when the draft differs from the last applied (server) configuration. */
+const bringingDirty = computed(() =>
+  fursuitList.value.some((f) => !!f.bringingToEvent !== !!bringingDraft.value[f.fursuit.id])
+);
+
+const printCount = computed(
+  () => fursuitList.value.filter((f) => toPrint.value[f.fursuit.id]).length
+);
+
+/**
+ * @param reset true when we're looking at a different user and everything
+ *              should go back to the server values; false to merge in newly
+ *              added fursuits without losing the operator's current work.
+ */
+const syncFursuitState = (reset: boolean) => {
+  const bringing: Record<number, boolean> = {};
+  const printing: Record<number, boolean> = {};
+
+  for (const f of fursuitList.value) {
+    const id = f.fursuit.id;
+    const known = !reset && id in bringingDraft.value;
+    bringing[id] = known ? bringingDraft.value[id] : !!f.bringingToEvent;
+    // Default on load: anything being brought is queued for printing.
+    printing[id] = known ? toPrint.value[id] : !!f.bringingToEvent;
+  }
+
+  bringingDraft.value = bringing;
+  toPrint.value = printing;
+};
+
+// New check-in: start from scratch.
+watch(() => props.userData, () => syncFursuitState(true), { immediate: true });
+
+// Fursuit added or removed: keep what the operator already selected.
+watch(
+  () => fursuitList.value.map((f) => f.fursuit.id).join('|'),
+  () => syncFursuitState(false)
+);
+
+const toggleBringing = (f: any) => {
+  const id = f.fursuit.id;
+  const next = !bringingDraft.value[id];
+
+  if (next && maxBringable.value > 0 && bringingCount.value >= maxBringable.value) {
+    Swal.fire({
+      icon: 'warning',
+      title: 'Limit reached',
+      text: `This user can bring at most ${maxBringable.value} fursuits to the event.`
+    });
+    return;
+  }
+
+  bringingDraft.value[id] = next;
+  // Dropping a fursuit always drops its print flag; adding one never sets it.
+  if (!next) toPrint.value[id] = false;
+};
+
+const togglePrint = (f: any) => {
+  const id = f.fursuit.id;
+  if (!bringingDraft.value[id]) return;
+  toPrint.value[id] = !toPrint.value[id];
+};
+
+const cancelBringingChanges = () => {
+  for (const f of fursuitList.value) {
+    const id = f.fursuit.id;
+    bringingDraft.value[id] = !!f.bringingToEvent;
+    if (!bringingDraft.value[id]) toPrint.value[id] = false;
+  }
+};
+
+const confirmBringingChanges = async () => {
+  savingBringing.value = true;
+  try {
+    await applyBringingSelection(
+      fursuitList.value.map((f) => ({
+        fursuitId: f.fursuit.id,
+        bringingToEvent: !!bringingDraft.value[f.fursuit.id],
+      }))
+    );
+
+    // Succeeded — the draft is now the applied configuration.
+    for (const f of fursuitList.value) {
+      f.bringingToEvent = !!bringingDraft.value[f.fursuit.id];
+    }
+
+    await Swal.fire({
+      icon: 'success',
+      title: 'Selection saved',
+      timer: 1500,
+      showConfirmButton: false
+    });
+  } catch (e: any) {
+    // Deliberately NOT rolled back: the operator keeps their edits to retry.
+    await Swal.fire({
+      icon: 'error',
+      title: 'Could not save',
+      text: e?.response?.data?.errors?.[0]?.message ?? e?.message ?? 'Please try again.'
+    });
+  } finally {
+    savingBringing.value = false;
+  }
+};
+
+const applyBringingSelection = async (
+  selection: { fursuitId: number; bringingToEvent: boolean }[]
+) => {
+  const ownerId = props.userData.user?.userId || props.userData.userId;
+  if (!ownerId) throw new Error('Missing the owner of these fursuits.');
+
+  // Send only what actually changed — see note below.
+  const applied = new Map<number, boolean>(
+    fursuitList.value.map((f: any) => [f.fursuit.id, !!f.bringingToEvent])
+  );
+
+  const map: Record<number, boolean> = {};
+  for (const item of selection) {
+    if (applied.get(item.fursuitId) !== item.bringingToEvent) {
+      map[item.fursuitId] = item.bringingToEvent;
+    }
+  }
+
+  if (!Object.keys(map).length) return;
+
+  const ok = await setFursuitsBroughtToEvent(ownerId, map);
+  if (ok !== true) throw new Error('The server refused the change.');
+};
+
 
 
 const handleCancel = async () => {
@@ -180,14 +322,24 @@ const printUserBadge = async () => {
 
 const printFursuitBadge = async () => {
     const opId = getOperatorId();
-    let ids: number[] = [];
-    props.userData.fursuits.forEach((f: any) => {
-        if (f.bringingToEvent) {
-          ids.push(f.fursuit.id);
-        }
-    });
+    const ids = fursuitList.value
+      .filter((f: any) => toPrint.value[f.fursuit.id])
+      .map((f: any) => f.fursuit.id);
+
+    if (!ids.length) {
+      await Swal.fire({
+        icon: 'info',
+        title: 'Nothing to print',
+        text: 'No fursuit is currently marked for printing.'
+      });
+      return;
+    }
+    
     isFursuitBadgePrinted.value = true;
     const res = await printBadge(opId, ids, 'FURSUIT_BADGE');
+    if (res.status === 200) {
+      ids.forEach((id: number) => (toPrint.value[id] = false));
+    }
     await Swal.fire({
       icon: res.status === 200 ? 'success' : 'error',
       title: 'Badge print',
@@ -431,14 +583,20 @@ if(status.toLowerCase() !== 'ok') {
         >
           PRINT STANDARD BADGE
         </AppButton>
-        <AppButton 
-          v-if="userData.hasFursuitBadge" 
-          :variant="isFursuitBadgePrinted ? 'secondary' : 'primary'"
-          size="lg"
-          @click="printFursuitBadge"
+        <span
+          v-if="userData.hasFursuitBadge"
+          class="print-guard"
+          :title="bringingDirty ? `Print disabled while 'bring fursuit to event' changes are pending` : undefined"
         >
-          PRINT FURSUIT BADGE
-        </AppButton>
+          <AppButton
+            :variant="isFursuitBadgePrinted ? 'secondary' : 'primary'"
+            size="lg"
+            :disabled="bringingDirty"
+            @click="printFursuitBadge"
+          >
+            PRINT FURSUIT BADGE
+          </AppButton>
+        </span>
         <AppButton 
           :variant="userData.shouldPrintApsJoinModule ? 'primary' : 'ghost'"
           @click="goToApsModule"
@@ -508,9 +666,20 @@ if(status.toLowerCase() !== 'ok') {
           </div>
 
           <div v-if="userData.fursuits?.length" class="fursuit-list">
-            <div v-for="f in userData.fursuits" :key="f.fursuit.id" class="fursuit-item">
+            <div
+              v-for="f in userData.fursuits"
+              :key="f.fursuit.id"
+              class="fursuit-item"
+              :class="{ 'fursuit-item--bringing': bringingDraft[f.fursuit.id] }"
+              role="button"
+              tabindex="0"
+              :aria-pressed="!!bringingDraft[f.fursuit.id]"
+              @click="toggleBringing(f)"
+              @keydown.enter.prevent="toggleBringing(f)"
+              @keydown.space.prevent="toggleBringing(f)"
+            >
               <div class="fursuit-item__avatar">
-                <img v-if="f.fursuit?.propic" :src="f.fursuit.propic.mediaUrl" />
+                <img v-if="f.fursuit?.propic?.mediaUrl" :src="f.fursuit.propic.mediaUrl" />
                 <div v-else class="avatar-placeholder">{{ f.fursuit?.name?.charAt(0) || '?' }}</div>
               </div>
               <div class="fursuit-info">
@@ -520,27 +689,64 @@ if(status.toLowerCase() !== 'ok') {
                 </div>
                 <span class="fursuit-specie">{{ f.fursuit?.species || f.fursuit?.specie }}</span>
                 <div class="fursuit-badges">
-                  <AppBadge v-if="f.bringingToEvent" size="sm" variant="success">Bringing</AppBadge>
+                  <AppBadge v-if="bringingDraft[f.fursuit.id]" size="sm" variant="success">Bringing</AppBadge>
                   <AppBadge v-if="f.fursuit?.sponsorship && f.fursuit.sponsorship !== 'NONE'" size="sm" variant="info">
                     {{ f.fursuit.sponsorship }}
                   </AppBadge>
                 </div>
               </div>
-              <button
-                type="button"
-                class="icon-btn icon-btn--edit"
-                :title="`Edit ${f.fursuit?.name}`"
-                :aria-label="`Edit ${f.fursuit?.name}`"
-                @click="onEditFursuit(f)"
-              >
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none"
-                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                </svg>
-              </button>
+
+              <div class="fursuit-actions">
+                <button
+                  type="button"
+                  class="icon-btn icon-btn--print"
+                  :class="{ 'is-active': toPrint[f.fursuit.id] }"
+                  :disabled="!bringingDraft[f.fursuit.id]"
+                  :title="toPrint[f.fursuit.id] ? 'Queued for printing' : 'Not queued for printing'"
+                  :aria-label="`Toggle printing for ${f.fursuit?.name}`"
+                  :aria-pressed="!!toPrint[f.fursuit.id]"
+                  @click.stop="togglePrint(f)"
+                >
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none"
+                      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M6 9V3h12v6" />
+                    <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                    <rect x="6" y="14" width="12" height="8" rx="1" />
+                  </svg>
+                </button>
+
+                <button
+                  type="button"
+                  class="icon-btn icon-btn--edit"
+                  :title="`Edit ${f.fursuit?.name}`"
+                  :aria-label="`Edit ${f.fursuit?.name}`"
+                  @click.stop="onEditFursuit(f)"
+                >
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none"
+                      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
           <p v-else class="fursuit-empty">No fursuits registered.</p>
+
+          <div v-if="userData.fursuits?.length" class="fursuit-summary">
+            <span class="fursuit-summary__count">
+              Bringing <strong>{{ bringingCount }}<template v-if="maxBringable">/{{ maxBringable }}</template></strong>
+              fursuits to the event · {{ printCount }} selected to be printed
+            </span>
+            <br>
+            <div class="fursuit-summary__actions">
+              <AppButton variant="danger" size="sm" :disabled="!bringingDirty || savingBringing" @click="cancelBringingChanges">
+                Cancel
+              </AppButton>
+              <AppButton variant="entry" size="sm" :disabled="!bringingDirty || savingBringing" @click="confirmBringingChanges">
+                {{ savingBringing ? 'Saving…' : 'Confirm' }}
+              </AppButton>
+            </div>
+          </div>
         </section>
 
         <!-- ROOM DATA -->
@@ -1215,14 +1421,80 @@ if(status.toLowerCase() !== 'ok') {
   background: rgba(255, 71, 87, 0.12);
 }
 
-.icon-btn--edit {
+.fursuit-item {
+  cursor: pointer;
+  user-select: none;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.fursuit-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.fursuit-item:focus-visible {
+  outline: 2px solid var(--color-info);
+  outline-offset: 2px;
+}
+
+.fursuit-item--bringing {
+  border-color: #eccc68;
+  background: rgba(236, 204, 104, 0.07);
+}
+
+.fursuit-actions {
   position: absolute;
   right: 8px;
   bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .fursuit-badges {
-  padding-right: 30px;
+  padding-right: 58px;
+}
+
+.icon-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+.icon-btn--print {
+  color: var(--color-text-muted);
+}
+
+.icon-btn--print.is-active {
+  color: var(--color-success);
+}
+
+.icon-btn--print:hover:not(:disabled) {
+  color: var(--color-success);
+  background: rgba(46, 213, 115, 0.12);
+}
+
+.fursuit-summary {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.fursuit-summary__count {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.fursuit-summary__count strong {
+  color: #eccc68;
+}
+
+.fursuit-summary__actions {
+  display: flex;
+  gap: 8px;
 }
 
 .fursuit-empty {

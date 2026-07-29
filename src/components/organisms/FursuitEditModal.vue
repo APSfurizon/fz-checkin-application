@@ -67,7 +67,36 @@ const isEdit = computed(() => !!props.fursuitData);
 
 const name = ref('');
 const species = ref('');
-const nameError = ref('');
+/** Mirrors GeneralConsts.NAME_REGEX. The /u flag is required for \p{...}. */
+const NAME_REGEX = /^[\p{L}\p{N}\p{M}_\-\/!"'()\[\].,&\\? ]{2,63}$/u;
+
+const submitAttempted = ref(false);
+
+const trimmedName = computed(() => name.value.trim());
+const trimmedSpecies = computed(() => species.value.trim());
+
+const nameValid = computed(() => NAME_REGEX.test(trimmedName.value));
+const speciesValid = computed(
+  () => trimmedSpecies.value === '' || NAME_REGEX.test(trimmedSpecies.value)
+);
+const formValid = computed(() => nameValid.value && speciesValid.value);
+
+function describeProblem(value: string) {
+  if (value.length < 2) return 'Use at least 2 characters.';
+  if (value.length > 63) return 'Use at most 63 characters.';
+  return 'Allowed: letters, numbers, spaces and _ - / ! " \' ( ) [ ] . , & \\ ?';
+}
+
+const nameError = computed(() => {
+  if (nameValid.value) return '';
+  // Stay quiet on an untouched empty field; the disabled button says enough.
+  if (!submitAttempted.value && trimmedName.value === '') return '';
+  return describeProblem(trimmedName.value);
+});
+
+const speciesError = computed(() =>
+  speciesValid.value ? '' : describeProblem(trimmedSpecies.value)
+);
 
 /* ----------------------------------------------------------------- cropper */
 
@@ -251,12 +280,8 @@ async function buildCroppedFile(): Promise<File | null> {
 /* ----------------------------------------------------------------- actions */
 
 async function onConfirm() {
-  const trimmedName = name.value.trim();
-  if (!trimmedName) {
-    nameError.value = 'Enter a name for this fursuit.';
-    return;
-  }
-  nameError.value = '';
+  submitAttempted.value = true;
+  if (!formValid.value) return;
 
   const propicFile = await buildCroppedFile();
   const original = props.fursuitData ?? null;
@@ -273,8 +298,8 @@ async function onConfirm() {
     fursuit: {
       ...(originalFursuit ?? {}),
       id: originalFursuit?.id ?? null,
-      name: trimmedName,
-      species: species.value.trim() || null,
+      name: trimmedName.value,
+      species: trimmedSpecies.value || null,
       ownerId: originalFursuit?.ownerId ?? original?.ownerId ?? props.ownerId ?? null,
     },
   };
@@ -299,7 +324,7 @@ function resetFromProps() {
   name.value = fursuit?.name ?? '';
   species.value = fursuit?.species ?? fursuit?.specie ?? '';
   existingPropicUrl.value = fursuit?.propic?.mediaUrl ?? null;
-  nameError.value = '';
+  submitAttempted.value = false;
   releaseObjectUrl();
 }
 
@@ -394,13 +419,13 @@ onBeforeUnmount(() => {
           <!-- FIELDS -->
           <div class="modal__fields">
             <AppInput v-model="name" label="Name" placeholder="Fursuit name" :error="nameError" />
-            <AppInput v-model="species" label="Species" placeholder="e.g. Lucario" />
+            <AppInput v-model="species" label="Species" placeholder="e.g. Lucario" :error="speciesError" />
           </div>
         </div>
 
         <div class="modal__footer">
           <AppButton variant="ghost" :disabled="saving" @click="onCancel">Cancel</AppButton>
-          <AppButton variant="primary" :disabled="saving || !name.trim()" @click="onConfirm">
+          <AppButton variant="primary" :disabled="saving || !formValid" @click="onConfirm">
             {{ saving ? 'Saving…' : isEdit ? 'Save changes' : 'Add fursuit' }}
           </AppButton>
         </div>
