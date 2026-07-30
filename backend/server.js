@@ -434,6 +434,12 @@ api.post('/proxy/badge/update-fursona-name', async (req, res) => {
     res.status(fzRes.status).json(fzRes.data);
 });
 
+api.get('/proxy/badge', async (req, res) => {
+    const query = new URLSearchParams(req.query).toString();
+    const fzRes = await fzGet(`badge/${query ? '?' + query : ''}`, req.headers);
+    res.status(fzRes.status).json(fzRes.data);
+});
+
 app.use('/api', api);
 
 app.use((req, res) => {

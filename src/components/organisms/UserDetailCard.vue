@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router';
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, nextTick } from 'vue';
 import Swal from 'sweetalert2';
 import AppBadge from '../atoms/AppBadge.vue';
 import AppButton from '../atoms/AppButton.vue';
 import { useGadgets } from '@/composables/useGadgets';
-import { getOperatorId, cancelCheckin, getApsJoinModule, printBadge, getCheckinListId, serveGadget, updateFursuitWithImage, createFursuitWithImage, setFursuitsBroughtToEvent, addFursuitBadges, uploadUserPropic, updateFursonaName } from '@/services/checkinApi';
+import { getOperatorId, cancelCheckin, getApsJoinModule, printBadge, getCheckinListId, serveGadget, updateFursuitWithImage, createFursuitWithImage, setFursuitsBroughtToEvent, addFursuitBadges, uploadUserPropic, updateFursonaName, getFullBadgeInfo } from '@/services/checkinApi';
 import type { FursuitListResponse } from '@/services/checkinApi';
 import UserBadgeEditModal from './UserBadgeEditModal.vue';
 import type { UserBadgeFormResult } from './UserBadgeEditModal.vue';
@@ -54,8 +54,8 @@ const onFursuitConfirm = async (result: FursuitFormResult) => {
 const saveFursuit = async (result: FursuitFormResult) => {
   if (result.isNew) {
       const ownerId = result.data.ownerId ?? props.userData.user?.userId;
-      console.log(result);
-      console.log(props.userData)
+      // console.log(result);
+      // console.log(props.userData)
       if (!ownerId) throw new Error('Missing the owner of the new fursuit.');
 
       const created = await createFursuitWithImage(ownerId, {
@@ -475,6 +475,64 @@ const onUserBadgeConfirm = async (result: UserBadgeFormResult) => {
   }
 };
 
+const refreshing = ref(false);
+
+const refreshBadgeInfo = async () => {
+  if (bringingDirty.value) {
+    const confirmed = await Swal.fire({
+      icon: 'warning',
+      title: 'Discard pending changes?',
+      text: 'Refreshing will drop the unsaved "bring to event" selection.',
+      showCancelButton: true,
+      confirmButtonText: 'Refresh anyway',
+      cancelButtonText: 'Keep editing'
+    });
+    if (!confirmed.isConfirmed) return;
+  }
+
+  refreshing.value = true;
+  try {
+    const userId = props.userData.user?.userId || props.userData.userId;
+    if (!userId) throw new Error('Missing the user id.');
+
+    const info = await getFullBadgeInfo(userId);
+
+    // The endpoint is scoped to the authenticated principal; make sure it
+    // honoured our userId rather than handing back the operator's own badge.
+    if (info.mainBadge?.userId && Number(info.mainBadge.userId) !== Number(userId)) {
+      throw new Error('The server returned a different user. Refresh aborted.');
+    }
+
+    if (props.userData.user) {
+      props.userData.user.fursonaName = info.mainBadge.fursonaName;
+      props.userData.user.propic = info.mainBadge.propic ?? null;
+    }
+    props.userData.fursonaName = info.mainBadge.fursonaName;
+
+    props.userData.fursuits = info.fursuits.fursuits ?? [];
+    props.userData.maxFursuitsBroughtToEvent = info.fursuits.maxFursuitsBroughtToEvent;
+    props.userData.maxExtraFursuitBadges = info.fursuits.maxExtraFursuitBadges;
+
+    // Let the id-list watcher settle before we overrule it below.
+    await nextTick();
+
+    // Selection back to server truth, nothing queued to print, input cleared.
+    syncFursuitState(true);
+    const cleared: Record<number, boolean> = {};
+    for (const f of fursuitList.value) cleared[f.fursuit.id] = false;
+    toPrint.value = cleared;
+    extraBadgeQty.value = '';
+  } catch (e: any) {
+    await Swal.fire({
+      icon: 'error',
+      title: 'Refresh failed',
+      text: e?.response?.data?.errors?.[0]?.message ?? e?.message ?? 'Please try again.'
+    });
+  } finally {
+    refreshing.value = false;
+  }
+};
+
 const goToApsModule = async () => {
   const userId = props.userData.user?.userId || props.userData.userId;
 
@@ -557,7 +615,7 @@ const reverseDailyDays = computed(() => {
 // LANYARD COLORS CONFIGURATION
 const getLanyardColor = (type: string) => {
   const t = type?.toUpperCase() || '';
-  console.log(t);
+  //console.log(t);
   if (t === 'MAIN_STAFF' || t === 'SECURITY_STAFF') return '#ff4757';
   if (t === 'JUNIOR_STAFF') return '#70a1ff';
   if (t === 'DAILY_BADGE') return '#ffffff';
@@ -643,6 +701,21 @@ if(status.toLowerCase() !== 'ok') {
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="icon-btn user-card__edit"
+            :disabled="refreshing"
+            title="Refresh badge data (discards pending fursuit changes)"
+            aria-label="Refresh badge data"
+            @click="refreshBadgeInfo"
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                :class="{ 'is-spinning': refreshing }">
+              <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+              <path d="M21 3v6h-6" />
             </svg>
           </button>
         </div>
@@ -1718,6 +1791,19 @@ if(status.toLowerCase() !== 'ok') {
 
 .user-card__edit {
   align-self: center;
+}
+
+.is-spinning {
+  transform-origin: 50% 50%;
+  animation: icon-spin 0.8s linear infinite;
+}
+
+@keyframes icon-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .is-spinning { animation: none; }
 }
 
 </style>

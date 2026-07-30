@@ -87,10 +87,37 @@ export interface FursuitUpdatePayload {
     image?: File | null;
 }
 
+export interface FursuitDisplayData {
+    id: number;
+    name: string;
+    species?: string | null;
+    propic?: MediaData | null;
+    ownerId?: number | null;
+    sponsorship?: "NONE" | "SPONSOR" | "SUPER_SPONSOR" | "ULTRA_SPONSOR" | null;
+}
+
+export interface FursuitData {
+    bringingToEvent: boolean;
+    ownerId: number;
+    showInFursuitCount: boolean;
+    showOwner: boolean;
+    fursuit: FursuitDisplayData;
+}
+
 export interface FursuitListResponse {
-    fursuits: any[];
+    fursuits: FursuitData[];
+    bringingToEvent: number;
     maxFursuitsBroughtToEvent: number;
     maxExtraFursuitBadges: number;
+    canBringFursuitsToEvent: boolean;
+    allowEditBringFursuitToEvent: boolean;
+}
+
+export interface FullInfoBadgeResponse {
+    mainBadge: UserDisplayData;
+    badgeEditingDeadline?: string | null;
+    allowedModifications: boolean;
+    fursuits: FursuitListResponse;
 }
 
 export async function login(credentials: { email: string; password: string }) {
@@ -267,6 +294,11 @@ export async function updateFursonaName(userId: number, fursonaName: string) {
         throw new Error(`Failed to update fursona name: ${response.status} ${response.statusText}`);
     }
     return response.data as boolean;
+}
+
+export async function getFullBadgeInfo(userId: number) {
+    const response = await furpanelApi.get("proxy/badge", { params: { userId } });
+    return response.data as FullInfoBadgeResponse;
 }
 
 export function setToken(token: string) {

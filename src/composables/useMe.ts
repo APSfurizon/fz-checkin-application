@@ -12,7 +12,7 @@ export function useMe() {
     localStorage.setItem("token", token);
     // isLoggedIn.value = true;
     const me = await getMe();
-    console.log(me);
+    //console.log(me);
     router.push({ name: "home" });
   }
 
