@@ -70,6 +70,7 @@ export interface CheckinResponse {
     gadgets: Gadget[];
     hasFursuitBadge: boolean;
     maxFursuitsBroughtToEvent: number;
+    maxExtraFursuitBadges: number;
     fursuits: any[];
     lanyardType: string;
     portaBadgeType: string;
@@ -83,6 +84,12 @@ export interface FursuitUpdatePayload {
     showOwner: boolean;
     deleteImage?: boolean;
     image?: File | null;
+}
+
+export interface FursuitListResponse {
+    fursuits: any[];
+    maxFursuitsBroughtToEvent: number;
+    maxExtraFursuitBadges: number;
 }
 
 export async function login(credentials: { email: string; password: string }) {
@@ -228,6 +235,19 @@ export async function setFursuitsBroughtToEvent(
         ownerUserId
     });
     return response.data as boolean;
+}
+
+export async function addFursuitBadges(
+    targetUserId: number,
+    quantity: number,
+    alreadyPaid: boolean
+) {
+    const response = await furpanelApi.post("proxy/fursuits/add-fursuit-badges", {
+        targetUserId,
+        quantity,
+        alreadyPaid
+    });
+    return response;
 }
 
 export function setToken(token: string) {

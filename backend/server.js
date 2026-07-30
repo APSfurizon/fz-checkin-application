@@ -412,6 +412,11 @@ api.post('/proxy/fursuits/bringToEvent', async (req, res) => {
     res.status(fzRes.status).json(fzRes.data);
 });
 
+api.post('/proxy/fursuits/add-fursuit-badges', async (req, res) => {
+    const fzRes = await fzPost('fursuits/add-fursuit-badges', req.body, req.headers);
+    res.status(fzRes.status).json(fzRes.data);
+});
+
 app.use('/api', api);
 
 app.use((req, res) => {

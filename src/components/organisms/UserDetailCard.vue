@@ -5,7 +5,8 @@ import Swal from 'sweetalert2';
 import AppBadge from '../atoms/AppBadge.vue';
 import AppButton from '../atoms/AppButton.vue';
 import { useGadgets } from '@/composables/useGadgets';
-import { getOperatorId, cancelCheckin, getApsJoinModule, printBadge, getCheckinListId, serveGadget, updateFursuitWithImage, createFursuitWithImage, setFursuitsBroughtToEvent } from '@/services/checkinApi';
+import { getOperatorId, cancelCheckin, getApsJoinModule, printBadge, getCheckinListId, serveGadget, updateFursuitWithImage, createFursuitWithImage, setFursuitsBroughtToEvent, addFursuitBadges } from '@/services/checkinApi';
+import type { FursuitListResponse } from '@/services/checkinApi';
 
 import FursuitEditModal from './FursuitEditModal.vue';
 import type { FursuitFormResult } from './FursuitEditModal.vue';
@@ -105,6 +106,9 @@ const bringingDraft = ref<Record<number, boolean>>({});
 const toPrint = ref<Record<number, boolean>>({});
 const savingBringing = ref(false);
 
+const extraBadgeQty = ref<number | ''>('');
+const addingBadges = ref(false);
+
 const maxBringable = computed<number>(() => props.userData?.maxFursuitsBroughtToEvent ?? 0);
 
 const fursuitList = computed<any[]>(() => props.userData?.fursuits ?? []);
@@ -144,7 +148,10 @@ const syncFursuitState = (reset: boolean) => {
 };
 
 // New check-in: start from scratch.
-watch(() => props.userData, () => syncFursuitState(true), { immediate: true });
+watch(() => props.userData, () => {
+  syncFursuitState(true);
+  extraBadgeQty.value = '';
+}, { immediate: true });
 
 // Fursuit added or removed: keep what the operator already selected.
 watch(
@@ -346,6 +353,86 @@ const printFursuitBadge = async () => {
       text: res.data.message
     });
 }
+
+/* ------------------------------------------- extra fursuit badges */
+
+
+const maxExtraBadges = computed<number>(() => props.userData?.maxExtraFursuitBadges ?? 0);
+
+/** How many more can still be added on top of what the order already covers. */
+const extraBadgesAvailable = computed(() =>
+  Math.max(0, maxExtraBadges.value - maxBringable.value)
+);
+
+const extraBadgeQtyValid = computed(() => {
+  const n = extraBadgeQty.value;
+  return (
+    typeof n === 'number' &&
+    Number.isInteger(n) &&
+    n > 0 &&
+    n <= extraBadgesAvailable.value
+  );
+});
+
+const addExtraFursuitBadges = async () => {
+  if (!extraBadgeQtyValid.value) return;
+  const quantity = Number(extraBadgeQty.value);
+
+  const answer = await Swal.fire({
+    icon: 'question',
+    title: 'Payment status',
+    text: 'Are the new extra fursuit badges already paid? By marking yes, a completed payment '
+        + 'will be automatically created on the order',
+    showConfirmButton: true,
+    confirmButtonText: 'Yes, already paid',
+    showDenyButton: true,
+    denyButtonText: 'No, they haven\'t paid yet',
+    showCancelButton: true,
+    cancelButtonText: 'Cancel'
+  });
+
+  // Deny is a real answer (not paid); dismiss means the operator backed out.
+  if (answer.isDismissed) return;
+  const alreadyPaid = answer.isConfirmed;
+
+  addingBadges.value = true;
+  try {
+    const targetUserId = props.userData.user?.userId || props.userData.userId;
+    if (!targetUserId) throw new Error('Missing the target user.');
+
+    const response = await addFursuitBadges(targetUserId, quantity, alreadyPaid);
+    if (response.status !== 200) {
+      throw new Error('Server rejected the request: ' + response.data);
+    }
+    const updated = response.data as FursuitListResponse;
+
+
+    if (typeof updated?.maxExtraFursuitBadges === 'number') {
+      props.userData.maxExtraFursuitBadges = updated.maxExtraFursuitBadges;
+    }
+    if (typeof updated?.maxFursuitsBroughtToEvent === 'number') {
+      props.userData.maxFursuitsBroughtToEvent = updated.maxFursuitsBroughtToEvent;
+    }
+
+    extraBadgeQty.value = '';
+
+    await Swal.fire({
+      icon: 'success',
+      title: 'Badges added',
+      text: `${quantity} extra fursuit badge${quantity > 1 ? 's' : ''} added to the order.`,
+      timer: 2000,
+      showConfirmButton: false
+    });
+  } catch (e: any) {
+    await Swal.fire({
+      icon: 'error',
+      title: 'Could not add badges',
+      text: e?.response?.data?.errors?.[0]?.message ?? e?.message ?? 'Please try again.'
+    });
+  } finally {
+    addingBadges.value = false;
+  }
+};
 
 const goToApsModule = async () => {
   const userId = props.userData.user?.userId || props.userData.userId;
@@ -747,6 +834,34 @@ if(status.toLowerCase() !== 'ok') {
               </AppButton>
             </div>
           </div>
+          <div class="extra-badges">
+          <template v-if="extraBadgesAvailable > 0">
+            <span>Add</span>
+            <input
+              v-model="extraBadgeQty"
+              class="extra-badges__input"
+              type="number"
+              min="1"
+              :max="extraBadgesAvailable"
+              step="1"
+              inputmode="numeric"
+              :disabled="addingBadges"
+              :aria-label="`Extra fursuit badges to add, up to ${extraBadgesAvailable}`"
+            />
+            <span>fursuit badges to the order (max {{ extraBadgesAvailable }})</span>
+            <AppButton
+              size="sm"
+              variant="primary"
+              :disabled="!extraBadgeQtyValid || addingBadges"
+              @click="addExtraFursuitBadges"
+            >
+              {{ addingBadges ? '…' : 'OK' }}
+            </AppButton>
+          </template>
+          <span v-else class="extra-badges__note">
+            No extra fursuit badges can be added to this order.
+          </span>
+        </div>
         </section>
 
         <!-- ROOM DATA -->
@@ -1502,4 +1617,42 @@ if(status.toLowerCase() !== 'ok') {
   color: var(--color-text-muted);
   font-style: italic;
 }
+
+.extra-badges {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.extra-badges__input {
+  width: 78px;
+  padding: 6px 8px;
+  text-align: center;
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.extra-badges__input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.extra-badges__input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.extra-badges__note {
+  font-style: italic;
+}
+
 </style>
