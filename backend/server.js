@@ -417,6 +417,23 @@ api.post('/proxy/fursuits/add-fursuit-badges', async (req, res) => {
     res.status(fzRes.status).json(fzRes.data);
 });
 
+api.post('/proxy/badge/user/upload/:userId',
+    express.raw({ type: 'multipart/form-data', limit: '25mb' }),
+    async (req, res) => {
+        const fzRes = await fzPostMultipart(
+            `badge/user/upload/${req.params.userId}`,
+            req.headers,
+            req.body
+        );
+        res.status(fzRes.status).json(fzRes.data);
+    }
+);
+
+api.post('/proxy/badge/update-fursona-name', async (req, res) => {
+    const fzRes = await fzPost('badge/update-fursona-name', req.body, req.headers);
+    res.status(fzRes.status).json(fzRes.data);
+});
+
 app.use('/api', api);
 
 app.use((req, res) => {

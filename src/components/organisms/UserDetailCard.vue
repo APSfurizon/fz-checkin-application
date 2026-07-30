@@ -5,8 +5,11 @@ import Swal from 'sweetalert2';
 import AppBadge from '../atoms/AppBadge.vue';
 import AppButton from '../atoms/AppButton.vue';
 import { useGadgets } from '@/composables/useGadgets';
-import { getOperatorId, cancelCheckin, getApsJoinModule, printBadge, getCheckinListId, serveGadget, updateFursuitWithImage, createFursuitWithImage, setFursuitsBroughtToEvent, addFursuitBadges } from '@/services/checkinApi';
+import { getOperatorId, cancelCheckin, getApsJoinModule, printBadge, getCheckinListId, serveGadget, updateFursuitWithImage, createFursuitWithImage, setFursuitsBroughtToEvent, addFursuitBadges, uploadUserPropic, updateFursonaName } from '@/services/checkinApi';
 import type { FursuitListResponse } from '@/services/checkinApi';
+import UserBadgeEditModal from './UserBadgeEditModal.vue';
+import type { UserBadgeFormResult } from './UserBadgeEditModal.vue';
+
 
 import FursuitEditModal from './FursuitEditModal.vue';
 import type { FursuitFormResult } from './FursuitEditModal.vue';
@@ -434,6 +437,44 @@ const addExtraFursuitBadges = async () => {
   }
 };
 
+const showUserModal = ref(false);
+const savingUserBadge = ref(false);
+
+const onUserBadgeConfirm = async (result: UserBadgeFormResult) => {
+  savingUserBadge.value = true;
+  try {
+    // Photo first: it's the call most likely to be rejected (size/dimensions),
+    // so a failure there leaves the name untouched.
+    if (result.propicFile) {
+      const media = await uploadUserPropic(result.userId, result.propicFile);
+      if (props.userData.user) props.userData.user.propic = media;
+    }
+
+    if (result.nameChanged) {
+      const ok = await updateFursonaName(result.userId, result.fursonaName);
+      if (ok !== true) throw new Error('The server refused the new fursona name.');
+      if (props.userData.user) props.userData.user.fursonaName = result.fursonaName;
+      props.userData.fursonaName = result.fursonaName;
+    }
+
+    showUserModal.value = false;
+    await Swal.fire({
+      icon: 'success',
+      title: 'Badge updated',
+      timer: 1500,
+      showConfirmButton: false
+    });
+  } catch (e: any) {
+    await Swal.fire({
+      icon: 'error',
+      title: 'Update failed',
+      text: e?.response?.data?.errors?.[0]?.message ?? e?.message ?? 'Please try again.'
+    });
+  } finally {
+    savingUserBadge.value = false;
+  }
+};
+
 const goToApsModule = async () => {
   const userId = props.userData.user?.userId || props.userData.userId;
 
@@ -592,11 +633,23 @@ if(status.toLowerCase() !== 'ok') {
       <div class="user-card__main-info">
         <div class="user-card__title-row">
           <h2 class="user-card__name">{{ userData.user?.fursonaName || userData.fursonaName }}</h2>
-          <span class="user-card__id">User Number: {{ userData.user?.userId || userData.checkinId || userData.userId }}</span>
+          <button
+            type="button"
+            class="icon-btn user-card__edit"
+            title="Edit propic and fursona name"
+            aria-label="Edit propic and fursona name"
+            @click="showUserModal = true"
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+            </svg>
+          </button>
         </div>
         <div class="user-card__sub-title-row">
+          <span class="user-card__id">User Number: {{ userData.user?.userId || userData.checkinId || userData.userId }} | </span>
           <span v-if="userData.cardsForEvent?.length" class="card-info-label">
-            card: {{ userData.cardsForEvent.map((c: any) => c.cardNo).join(', ') }}
+            Card: {{ userData.cardsForEvent.map((c: any) => c.cardNo).join(', ') }}
           </span>
         </div>
         <div class="user-card__badges">
@@ -964,6 +1017,14 @@ if(status.toLowerCase() !== 'ok') {
       :saving="savingFursuit"
       @close="showFursuitModal = false"
       @confirm="onFursuitConfirm"
+    />
+    <UserBadgeEditModal
+      :show="showUserModal"
+      :user="userData.user"
+      :user-id="userData.user?.userId || userData.userId"
+      :saving="savingUserBadge"
+      @close="showUserModal = false"
+      @confirm="onUserBadgeConfirm"
     />
   </div>
 </template>
@@ -1653,6 +1714,10 @@ if(status.toLowerCase() !== 'ok') {
 
 .extra-badges__note {
   font-style: italic;
+}
+
+.user-card__edit {
+  align-self: center;
 }
 
 </style>

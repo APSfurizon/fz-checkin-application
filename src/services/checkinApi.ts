@@ -1,17 +1,18 @@
 import furpanelApi from "@services/axiosInstance";
 import { getCookie, setCookie, eraseCookie } from "@/utils/cookies";
 
+export interface MediaData {
+    mediaId: number;
+    mediaUrl: string;
+    mimeType: string;
+}
 
 export interface UserDisplayData {
     userId: number;
     fursonaName: string;
     locale: string;
     language: string;
-    propic?: {
-        mediaId: number;
-        mediaUrl: string;
-        mimeType: string;
-    } | null;
+    propic?: MediaData | null;
     sponsorship: "NONE" | "SPONSOR" | "SUPER_SPONSOR" | "ULTRA_SPONSOR";
 }
 
@@ -248,6 +249,24 @@ export async function addFursuitBadges(
         alreadyPaid
     });
     return response;
+}
+
+export async function uploadUserPropic(userId: number, image: File) {
+    const form = new FormData();
+    form.append("image", image, image.name);
+    const response = await furpanelApi.post(`proxy/badge/user/upload/${userId}`, form);
+    return response.data as MediaData;
+}
+
+export async function updateFursonaName(userId: number, fursonaName: string) {
+    const response = await furpanelApi.post("proxy/badge/update-fursona-name", {
+        userId,
+        fursonaName
+    });
+    if (response.status !== 200) {
+        throw new Error(`Failed to update fursona name: ${response.status} ${response.statusText}`);
+    }
+    return response.data as boolean;
 }
 
 export function setToken(token: string) {

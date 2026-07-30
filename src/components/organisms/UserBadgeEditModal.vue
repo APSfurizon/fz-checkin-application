@@ -4,137 +4,90 @@ import AppButton from '../atoms/AppButton.vue';
 import AppInput from '../atoms/AppInput.vue';
 import PropicCropper from '../molecules/PropicCropper.vue';
 
-export interface FursuitFormResult {
-  /** true when creating a brand new fursuit, false when editing an existing one */
-  isNew: boolean;
-  /** the untouched FursuitData this modal was opened with (null when creating) */
-  original: any | null;
-  /** original FursuitData merged with the edited fields, ready to send */
-  data: any;
-  /** the cropped square image, or null if the operator did not pick a new one */
+/** The badge upload endpoint rejects anything larger. */
+const OUTPUT = 512;
+
+/** Mirrors GeneralConsts.NAME_REGEX. The /u flag is required for \p{...}. */
+const NAME_REGEX = /^[\p{L}\p{N}\p{M}_\-\/!"'()\[\].,&\\? ]{2,63}$/u;
+
+export interface UserBadgeFormResult {
+  userId: number;
+  /** Trimmed, already validated against NAME_REGEX. */
+  fursonaName: string;
+  /** False when the operator only changed the photo. */
+  nameChanged: boolean;
+  /** 512x512 square, or null when the photo was left alone. */
   propicFile: File | null;
-  /** true only when a new image was selected and cropped */
-  propicChanged: boolean;
 }
 
 interface Props {
   show: boolean;
-  /** pass the FursuitData object to edit it, or leave null to create a new one */
-  fursuitData?: any | null;
-  /** owner of the new fursuit — required in create mode */
-  ownerId?: number | null;
-  /** let the parent show a pending state while it saves */
+  /** The UserDisplayData object (userData.user). */
+  user?: any | null;
+  /** Falls back to this when user.userId is absent. */
+  userId?: number | null;
   saving?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  fursuitData: null,
-  ownerId: null,
+  user: null,
+  userId: null,
   saving: false,
 });
 
 const emit = defineEmits<{
   close: [];
-  confirm: [result: FursuitFormResult];
+  confirm: [result: UserBadgeFormResult];
 }>();
 
-const isEdit = computed(() => !!props.fursuitData);
+const cropperRef = ref<InstanceType<typeof PropicCropper>>();
 
-/* ------------------------------------------------------------------ fields */
-
-const name = ref('');
-const species = ref('');
-/** Mirrors GeneralConsts.NAME_REGEX. The /u flag is required for \p{...}. */
-const NAME_REGEX = /^[\p{L}\p{N}\p{M}_\-\/!"'()\[\].,&\\? ]{2,63}$/u;
-
+const fursonaName = ref('');
+const originalName = ref('');
+const photoPicked = ref(false);
 const submitAttempted = ref(false);
 
-const trimmedName = computed(() => name.value.trim());
-const trimmedSpecies = computed(() => species.value.trim());
-
-const nameValid = computed(() => NAME_REGEX.test(trimmedName.value));
-const speciesValid = computed(
-  () => trimmedSpecies.value === '' || NAME_REGEX.test(trimmedSpecies.value)
+const existingPropicUrl = computed<string | null>(
+  () => props.user?.propic?.mediaUrl ?? null
 );
-const formValid = computed(() => nameValid.value && speciesValid.value);
 
-function describeProblem(value: string) {
-  if (value.length < 2) return 'Use at least 2 characters.';
-  if (value.length > 63) return 'Use at most 63 characters.';
-  return 'Allowed: letters, numbers, spaces and _ - / ! " \' ( ) [ ] . , & \\ ?';
-}
+const trimmedName = computed(() => fursonaName.value.trim());
+const nameValid = computed(() => NAME_REGEX.test(trimmedName.value));
+const nameChanged = computed(() => trimmedName.value !== originalName.value);
+
+/** Nothing to send means nothing to do. */
+const dirty = computed(() => nameChanged.value || photoPicked.value);
 
 const nameError = computed(() => {
   if (nameValid.value) return '';
-  // Stay quiet on an untouched empty field; the disabled button says enough.
   if (!submitAttempted.value && trimmedName.value === '') return '';
-  return describeProblem(trimmedName.value);
+  const value = trimmedName.value;
+  if (value.length < 2) return 'Use at least 2 characters.';
+  if (value.length > 63) return 'Use at most 63 characters.';
+  return 'Allowed: letters, numbers, spaces and _ - / ! " \' ( ) [ ] . , & \\ ?';
 });
-
-const speciesError = computed(() =>
-  speciesValid.value ? '' : describeProblem(trimmedSpecies.value)
-);
-
-/* ----------------------------------------------------------------- cropper */
-
-const cropperRef = ref<InstanceType<typeof PropicCropper>>();
-const photoPicked = ref(false);
-
-const existingPropicUrl = computed<string | null>(
-  () => props.fursuitData?.fursuit?.propic?.mediaUrl ?? null
-);
-
-/* ----------------------------------------------------------------- actions */
 
 async function onConfirm() {
   submitAttempted.value = true;
-  if (!formValid.value) return;
+  if (!nameValid.value || !dirty.value) return;
+
+  const userId = props.user?.userId ?? props.userId;
+  if (!userId) return;
 
   const propicFile = photoPicked.value
     ? (await cropperRef.value?.getCroppedFile()) ?? null
     : null;
 
-  const original = props.fursuitData ?? null;
-  const originalFursuit = original?.fursuit ?? null;
-
-  // Defaults first, then everything the modal was given, then the edited fields.
-  // Anything the operator cannot see here survives untouched.
-  const data = {
-    bringingToEvent: false,
-    showInFursuitCount: true,
-    showOwner: true,
-    ...(original ?? {}),
-    ownerId: original?.ownerId ?? props.ownerId ?? null,
-    fursuit: {
-      ...(originalFursuit ?? {}),
-      id: originalFursuit?.id ?? null,
-      name: trimmedName.value,
-      species: trimmedSpecies.value || null,
-      ownerId: originalFursuit?.ownerId ?? original?.ownerId ?? props.ownerId ?? null,
-    },
-  };
-
   emit('confirm', {
-    isNew: !original,
-    original,
-    data,
+    userId,
+    fursonaName: trimmedName.value,
+    nameChanged: nameChanged.value,
     propicFile,
-    propicChanged: !!propicFile,
   });
 }
 
 function onCancel() {
   emit('close');
-}
-
-/* --------------------------------------------------------------- lifecycle */
-
-function resetFromProps() {
-  const fursuit = props.fursuitData?.fursuit;
-  name.value = fursuit?.name ?? '';
-  species.value = fursuit?.species ?? fursuit?.specie ?? '';
-  submitAttempted.value = false;
-  photoPicked.value = false;
 }
 
 function onKeydown(event: KeyboardEvent) {
@@ -145,7 +98,11 @@ watch(
   () => props.show,
   (open) => {
     if (open) {
-      resetFromProps();
+      const current = props.user?.fursonaName ?? '';
+      fursonaName.value = current;
+      originalName.value = current.trim();
+      photoPicked.value = false;
+      submitAttempted.value = false;
       window.addEventListener('keydown', onKeydown);
     } else {
       window.removeEventListener('keydown', onKeydown);
@@ -162,7 +119,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
     <div v-if="show" class="modal-overlay" @click.self="onCancel">
       <div class="modal" role="dialog" aria-modal="true">
         <div class="modal__header">
-          <h3 class="modal__title">{{ isEdit ? 'Edit fursuit' : 'Add fursuit' }}</h3>
+          <h3 class="modal__title">Edit badge</h3>
           <button class="modal__close" type="button" aria-label="Close" @click="onCancel">
             &times;
           </button>
@@ -172,25 +129,29 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
           <PropicCropper
             ref="cropperRef"
             :existing-url="existingPropicUrl"
-            filename-base="fursuit-propic"
+            :output-size="OUTPUT"
+            filename-base="user-propic"
             @change="photoPicked = $event"
           />
 
           <div class="modal__fields">
-            <AppInput v-model="name" label="Name" placeholder="Fursuit name" :error="nameError" />
             <AppInput
-              v-model="species"
-              label="Species"
-              placeholder="e.g. Lucario"
-              :error="speciesError"
+              v-model="fursonaName"
+              label="Fursona name"
+              placeholder="Fursona name"
+              :error="nameError"
             />
           </div>
         </div>
 
         <div class="modal__footer">
           <AppButton variant="ghost" :disabled="saving" @click="onCancel">Cancel</AppButton>
-          <AppButton variant="primary" :disabled="saving || !formValid" @click="onConfirm">
-            {{ saving ? 'Saving…' : isEdit ? 'Save changes' : 'Add fursuit' }}
+          <AppButton
+            variant="primary"
+            :disabled="saving || !nameValid || !dirty"
+            @click="onConfirm"
+          >
+            {{ saving ? 'Saving…' : 'Save changes' }}
           </AppButton>
         </div>
       </div>
@@ -274,8 +235,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
   border-top: var(--border-width) solid var(--color-border);
   flex-shrink: 0;
 }
-
-/* Transitions */
 
 .modal-enter-active,
 .modal-leave-active {
