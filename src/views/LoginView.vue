@@ -77,7 +77,6 @@ async function onSubmit() {
     }
   } catch (error: any) {
     console.error('Login error:', error);
-    errorMsg.value = error.response?.data?.message || error.response?.data?.errors?.[0]?.message || 'Invalid credentials or server error.';
   } finally {
     loading.value = false;
   }

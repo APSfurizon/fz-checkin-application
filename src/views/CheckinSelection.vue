@@ -3,7 +3,6 @@ import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { getCheckinLists, setCheckinListId, getUserInfo } from '@/services/checkinApi';
 import AppButton from '@/components/atoms/AppButton.vue';
-import ErrorModal from '@/components/organisms/ErrorModal.vue';
 
 const router = useRouter();
 const lists = ref<any[]>([]);
@@ -53,12 +52,6 @@ const selectList = (id: number, name: string) => {
         </div>
       </div>
     </div>
-
-    <ErrorModal 
-      :show="!!error" 
-      :message="error" 
-      @close="error = ''" 
-    />
   </div>
 </template>
 

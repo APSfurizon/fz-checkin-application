@@ -94,11 +94,6 @@ const saveFursuit = async (result: FursuitFormResult) => {
     const index = list?.findIndex((f: any) => f.fursuit?.id === fursuitId) ?? -1;
     if (list && index > -1) list.splice(index, 1, updated);
   } catch (e: any) {
-    const message =
-      e?.response?.data?.errors?.[0]?.message ??
-      e?.response?.data?.message ??
-      'Could not update the fursuit.';
-    await Swal.fire({ icon: 'error', title: 'Update failed', text: message });
     throw e;
   }
 };
@@ -220,11 +215,6 @@ const confirmBringingChanges = async () => {
     });
   } catch (e: any) {
     // Deliberately NOT rolled back: the operator keeps their edits to retry.
-    await Swal.fire({
-      icon: 'error',
-      title: 'Could not save',
-      text: e?.response?.data?.errors?.[0]?.message ?? e?.message ?? 'Please try again.'
-    });
   } finally {
     savingBringing.value = false;
   }
@@ -430,11 +420,7 @@ const addExtraFursuitBadges = async () => {
       showConfirmButton: false
     });
   } catch (e: any) {
-    await Swal.fire({
-      icon: 'error',
-      title: 'Could not add badges',
-      text: e?.response?.data?.errors?.[0]?.message ?? e?.message ?? 'Please try again.'
-    });
+
   } finally {
     addingBadges.value = false;
   }
@@ -468,11 +454,7 @@ const onUserBadgeConfirm = async (result: UserBadgeFormResult) => {
       showConfirmButton: false
     });
   } catch (e: any) {
-    await Swal.fire({
-      icon: 'error',
-      title: 'Update failed',
-      text: e?.response?.data?.errors?.[0]?.message ?? e?.message ?? 'Please try again.'
-    });
+
   } finally {
     savingUserBadge.value = false;
   }
@@ -526,11 +508,7 @@ const refreshBadgeInfo = async () => {
     toPrint.value = cleared;
     extraBadgeQty.value = '';
   } catch (e: any) {
-    await Swal.fire({
-      icon: 'error',
-      title: 'Refresh failed',
-      text: e?.response?.data?.errors?.[0]?.message ?? e?.message ?? 'Please try again.'
-    });
+
   } finally {
     refreshing.value = false;
   }

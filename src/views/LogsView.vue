@@ -5,7 +5,6 @@ import { getCheckinLogs, getCheckinListId, getCheckinListName, getUserInfo } fro
 import AppInput from '@/components/atoms/AppInput.vue';
 import AppButton from '@/components/atoms/AppButton.vue';
 import SearchResultItem from '@/components/molecules/SearchResultItem.vue';
-import ErrorModal from '@/components/organisms/ErrorModal.vue';
 
 const router = useRouter();
 const listId = Number(getCheckinListId());
@@ -170,8 +169,6 @@ const handleBack = () => {
         <p></p>
       </section>
     </main>
-
-    <ErrorModal :show="!!error" :message="error" @close="error = ''" />
   </div>
 </template>
 

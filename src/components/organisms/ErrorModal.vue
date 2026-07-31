@@ -117,6 +117,11 @@ const showLogout = computed(() => {
   justify-content: flex-end;
 }
 
+.modal__message {
+  line-height: 1.5;
+  white-space: pre-line;
+}
+
 /* Transitions */
 .modal-enter-active, .modal-leave-active {
   transition: opacity 0.3s ease;

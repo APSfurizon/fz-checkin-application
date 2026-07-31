@@ -6,7 +6,6 @@ import { toggleGadget, getUserInfo } from '@/services/checkinApi';
 import { useGadgets } from '@/composables/useGadgets';
 import AppButton from '@/components/atoms/AppButton.vue';
 import AppInput from '@/components/atoms/AppInput.vue';
-import ErrorModal from '@/components/organisms/ErrorModal.vue';
 
 const router = useRouter();
 const { gadgetCheckins, loading, error, volume, loadGadgets, updateGadgetStatus, startPolling, stopPolling } = useGadgets();
@@ -191,12 +190,6 @@ onUnmounted(() => {
         </div>
       </div>
     </main>
-
-    <ErrorModal 
-      :show="!!error" 
-      :message="error" 
-      @close="error = ''" 
-    />
   </div>
 </template>
 
