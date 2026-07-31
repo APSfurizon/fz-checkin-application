@@ -119,6 +119,9 @@ const fursuitList = computed<any[]>(() => props.userData?.fursuits ?? []);
 const bringingCount = computed(
   () => fursuitList.value.filter((f) => bringingDraft.value[f.fursuit.id]).length
 );
+const confirmedBringingCount = computed(
+  () => fursuitList.value.filter((f) => f.bringingToEvent).length
+);
 
 /** True when the draft differs from the last applied (server) configuration. */
 const bringingDirty = computed(() =>
@@ -806,7 +809,7 @@ const statusVariant = computed(() => {
           PRINT STANDARD BADGE
         </AppButton>
         <span
-          v-if="userData.hasFursuitBadge"
+          v-if="userData.hasFursuitBadge || confirmedBringingCount > 0"
           class="print-guard"
           :title="bringingDirty ? `Print disabled while 'bring fursuit to event' changes are pending` : undefined"
         >
