@@ -16,11 +16,11 @@ interface Props {
 withDefaults(defineProps<Props>(), {
   showArrow: true
 });
-defineEmits(['click']);
+defineEmits(['redeem', 'info']);
 </script>
 
 <template>
-  <div class="result-item" @click="$emit('click')">
+  <div class="result-item" @click="$emit('redeem')">
     <div v-if="avatar" class="result-item__avatar">
       <img :src="avatar" alt="Avatar" />
     </div>
@@ -34,6 +34,20 @@ defineEmits(['click']);
       </div>
       <p class="result-item__subtitle" v-html="subtitle"></p>
     </div>
+    <button
+      v-if="showArrow"
+      type="button"
+      class="result-item__info"
+      title="Preview check-in without redeeming"
+      aria-label="Preview check-in without redeeming"
+      @click.stop="$emit('info')"
+    >
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
+          stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10" />
+        <path d="M12 16v-4M12 8h.01" />
+      </svg>
+    </button>
     <div v-if="status" class="result-item__status">
       <AppBadge :variant="statusVariant">{{ status }}</AppBadge>
     </div>
@@ -128,4 +142,21 @@ defineEmits(['click']);
   color: var(--color-primary);
   opacity: 1;
 }
+
+.result-item__info {
+  display: inline-flex;
+  padding: 4px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.result-item__info:hover {
+  color: var(--color-info);
+  background: rgba(30, 144, 255, 0.12);
+}
+
 </style>

@@ -252,94 +252,100 @@ api.post('/badge/print', async (req, res) => {
 api.post('/checkin/redeem', async (req, res) => {
     try {
         const fzRes = await fzPost("checkin/redeem", req.body, req.headers);
-        if (fzRes.status === 200 && fzRes.data?.status === 'ok') {
-            const d = fzRes.data;
-            console.log(`[REDEEM SUCCESS] Order: ${d.orderCode}, User: ${d.user?.fursonaName}`);
-            
-            try {
-                const stmt = db.prepare(`
-                    INSERT INTO 
-                    checkins (
-                        userId,
-                        checkinNonce,
-                        checkinListId,
-                        fursonaName,
-                        firstName,
-                        lastName,
-                        orderSerial,
-                        orderCode,
-                        gadgets,
-                        shirtSize,
-                        portaBadgeType,
-                        lanyardType,
-                        hasFursuitBadge,
-                        shouldPrintApsJoinModule,
-                        propicUrl,
-                        operatorId
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(orderCode) DO UPDATE SET
-                        userId=?,
-                        checkinNonce=?,
-                        checkinListId=?,
-                        fursonaName=?,
-                        firstName=?,
-                        lastName=?,
-                        orderSerial=?,
-                        gadgets=?,
-                        shirtSize=?,
-                        portaBadgeType=?,
-                        lanyardType=?,
-                        hasFursuitBadge=?,
-                        shouldPrintApsJoinModule=?,
-                        propicUrl=?,
-                        operatorId=?
-                `);
-                const userId = d.user?.userId
-                const checkinNonce = d.checkinNonce
-                const checkinListId = req.body.checkinListIds[0]           
-                const fursonaName = d.user?.fursonaName || '-'
-                const firstName = d.firstName || ''
-                const lastName = d.lastName || ''
-                const orderSerial = d.orderSerial || 0
-                const orderCode = d.orderCode || ''
-                const gadgets = JSON.stringify(d.gadgets || [])
-                const shirtSize = d.shirtSize || ''
-                const portaBadgeType = d.portaBadgeType || ''
-                const lanyardType = d.lanyardType || ''
-                const hasFursuitBadge = d.hasFursuitBadge ? 1 : 0
-                const shouldPrintApsJoinModule = d.shouldPrintApsJoinModule ? 1 : 0
-                const propicUrl =  d.user?.propic?.mediaUrl || null
-                const operatorId = req.body.operatorId || -1 
-                const result = stmt.run(
-                    userId, checkinNonce, checkinListId, 
-                    fursonaName, firstName, lastName, 
-                    orderSerial, orderCode, 
-                    gadgets, shirtSize, portaBadgeType, lanyardType, 
-                    hasFursuitBadge, shouldPrintApsJoinModule, 
-                    propicUrl, operatorId,
+        if (!req.body.dryRun) {
+            if (fzRes.status === 200 && fzRes.data?.status === 'ok') {
+                const d = fzRes.data;
+                console.log(`[REDEEM SUCCESS] Order: ${d.orderCode}, User: ${d.user?.fursonaName}`);
+                
+                try {
+                    const stmt = db.prepare(`
+                        INSERT INTO 
+                        checkins (
+                            userId,
+                            checkinNonce,
+                            checkinListId,
+                            fursonaName,
+                            firstName,
+                            lastName,
+                            orderSerial,
+                            orderCode,
+                            gadgets,
+                            shirtSize,
+                            portaBadgeType,
+                            lanyardType,
+                            hasFursuitBadge,
+                            shouldPrintApsJoinModule,
+                            propicUrl,
+                            operatorId
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(orderCode) DO UPDATE SET
+                            userId=?,
+                            checkinNonce=?,
+                            checkinListId=?,
+                            fursonaName=?,
+                            firstName=?,
+                            lastName=?,
+                            orderSerial=?,
+                            gadgets=?,
+                            shirtSize=?,
+                            portaBadgeType=?,
+                            lanyardType=?,
+                            hasFursuitBadge=?,
+                            shouldPrintApsJoinModule=?,
+                            propicUrl=?,
+                            operatorId=?
+                    `);
+                    const userId = d.user?.userId
+                    const checkinNonce = d.checkinNonce
+                    const checkinListId = req.body.checkinListIds[0]           
+                    const fursonaName = d.user?.fursonaName || '-'
+                    const firstName = d.firstName || ''
+                    const lastName = d.lastName || ''
+                    const orderSerial = d.orderSerial || 0
+                    const orderCode = d.orderCode || ''
+                    const gadgets = JSON.stringify(d.gadgets || [])
+                    const shirtSize = d.shirtSize || ''
+                    const portaBadgeType = d.portaBadgeType || ''
+                    const lanyardType = d.lanyardType || ''
+                    const hasFursuitBadge = d.hasFursuitBadge ? 1 : 0
+                    const shouldPrintApsJoinModule = d.shouldPrintApsJoinModule ? 1 : 0
+                    const propicUrl =  d.user?.propic?.mediaUrl || null
+                    const operatorId = req.body.operatorId || -1 
+                    const result = stmt.run(
+                        userId, checkinNonce, checkinListId, 
+                        fursonaName, firstName, lastName, 
+                        orderSerial, orderCode, 
+                        gadgets, shirtSize, portaBadgeType, lanyardType, 
+                        hasFursuitBadge, shouldPrintApsJoinModule, 
+                        propicUrl, operatorId,
 
-                    userId, checkinNonce, checkinListId, 
-                    fursonaName, firstName, lastName, 
-                    orderSerial, 
-                    gadgets, shirtSize, portaBadgeType, lanyardType, 
-                    hasFursuitBadge, shouldPrintApsJoinModule, 
-                    propicUrl, operatorId,
-                );
-                console.log(`[DB INSERT] Check-in saved with ID: ${result.lastInsertRowid}`);
-                fzRes.data.checkinApplicationId = result.lastInsertRowid; // Return the ID of the check-in application to the client
-            } catch (dbErr) {
-                console.error("[DB ERROR] Failed to save check-in:", dbErr.message);
-                // We don't fail the request because the remote redeem succeeded
+                        userId, checkinNonce, checkinListId, 
+                        fursonaName, firstName, lastName, 
+                        orderSerial, 
+                        gadgets, shirtSize, portaBadgeType, lanyardType, 
+                        hasFursuitBadge, shouldPrintApsJoinModule, 
+                        propicUrl, operatorId,
+                    );
+                    console.log(`[DB INSERT] Check-in saved with ID: ${result.lastInsertRowid}`);
+                    fzRes.data.checkinApplicationId = result.lastInsertRowid; // Return the ID of the check-in application to the client
+                } catch (dbErr) {
+                    console.error("[DB ERROR] Failed to save check-in:", dbErr.message);
+                    // We don't fail the request because the remote redeem succeeded
+                }
+            } else {
+                try {
+                    console.error("[REDEEM FAILED] Trying to load checkin application id anyway");
+                    const r = db.prepare('SELECT id FROM checkins WHERE orderCode = ?').get(fzRes.data.orderCode || '');
+                    fzRes.data.checkinApplicationId = r?.id || null;
+                } catch (dbErr) {
+                    console.error("[DB ERROR] Failed to retrieve checkin application id while checkin in:", dbErr.message);
+                    // We don't fail the request because the remote redeem succeeded
+                }
             }
         } else {
-            try {
-                console.error("[REDEEM FAILED] Trying to load checkin application id anyway");
-                const r = db.prepare('SELECT id FROM checkins WHERE orderCode = ?').get(fzRes.data.orderCode || '');
-                fzRes.data.checkinApplicationId = r?.id || null;
-            } catch (dbErr) {
-                console.error("[DB ERROR] Failed to retrieve checkin application id while checkin in:", dbErr.message);
-                // We don't fail the request because the remote redeem succeeded
-            }
+            console.log("[REDEEM DRY RUN] Not saving to database");
+            fzRes.data.checkinApplicationId = null;
+            fzRes.data.gadgetCollectedAt = null;
         }
         if (fzRes.data.checkinApplicationId) {
             try {

@@ -660,10 +660,10 @@ const birthPlace = computed(() => {
 });
 
 const {optionalErrorMessage, localizedErrorReason, status} = props.userData
-if(status.toLowerCase() !== 'ok') {
-  let text = localizedErrorReason
+if(status.toLowerCase() !== 'ok' && status.toLowerCase() !== 'none') {
+  let text = localizedErrorReason || "";
   if(!!optionalErrorMessage) {
-    text+= ". "+optionalErrorMessage
+    text+= ". " + optionalErrorMessage;
   }
   Swal.fire({
     icon: 'error',
@@ -671,6 +671,15 @@ if(status.toLowerCase() !== 'ok') {
     text
   })
 }
+
+const statusVariant = computed(() => {
+  switch (props.userData.status) {
+    case 'ok': return 'success';
+    case 'incomplete': return 'info';
+    case 'NONE': return 'info';
+    default: return 'warning';
+  }
+});
 
 </script>
 
@@ -732,7 +741,7 @@ if(status.toLowerCase() !== 'ok') {
           </div>
           <AppBadge v-if="userData.user?.staffer || userData.staffer" variant="success">STAFF</AppBadge>
           <AppBadge v-if="userData.user?.dailyTicket || userData.dailyTicket" variant="info">DAILY</AppBadge>
-          <AppBadge variant="default" class="status-badge" :class="{'status-badge--ok': userData.status.toLowerCase() === 'ok' || !userData.status}">Check-in/out status: {{ userData.status || 'OK' }}</AppBadge>
+          <AppBadge :variant="statusVariant" class="status-badge">Check-in/out status: {{ userData.status || 'OK' }}</AppBadge>
         </div>
       </div>
       <div class="user-card__order-info">
@@ -1234,12 +1243,17 @@ if(status.toLowerCase() !== 'ok') {
   position: absolute;
   right: 10px;
   top: 10px;
-  background-color: var(--color-warning);
-  color: black;
 }
 
-.status-badge--ok {
+.status-badge--success {
   background-color: var(--color-success);
+}
+.status-badge--warning {
+  background-color: var(--color-warning);
+}
+.status-badge--info {
+  color: white;
+  background-color: var(--color-info);
 }
 
 .user-card__order-info {

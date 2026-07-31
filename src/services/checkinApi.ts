@@ -64,7 +64,7 @@ export interface CheckinLogsResponse {
 
 export interface CheckinResponse {
     checkinNonce: string;
-    status: "ok" | "incomplete" | "error";
+    status: "ok" | "incomplete" | "error" | "NONE";
     user: UserDisplayData;
     orderCode: string;
     orderSerial: number;
@@ -166,6 +166,7 @@ export async function redeemCheckin(data: {
     secret: string;
     checkinType: "entry" | "exit";
     operatorId?: number;
+    dryRun?: boolean;
 }) {
     const response = await furpanelApi.post("checkin/redeem", data);
     return response.data as CheckinResponse;

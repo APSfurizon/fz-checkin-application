@@ -9,6 +9,7 @@ import SearchResultItem from '@/components/molecules/SearchResultItem.vue';
 import UserDetailCard from '@/components/organisms/UserDetailCard.vue';
 import ErrorModal from '@/components/organisms/ErrorModal.vue';
 import { useAuth } from '@/composables/useAuth';
+import type { CheckinSearchResult } from '@/services/checkinApi';
 const { logout } = useAuth();
 
 const router = useRouter();
@@ -141,7 +142,26 @@ onUnmounted(() => {
   window.removeEventListener('keydown', handleGlobalKeydown);
 });
 
-const confirmRedeem = async (result: any) => {
+const previewResult = async (result: CheckinSearchResult) => {
+  loading.value = true;
+  try {
+    const data = await redeemCheckin({
+      checkinListIds: [listId],
+      secret: result.checkinSecret,
+      operatorId: getOperatorId() || undefined,
+      checkinType: checkinType.value,
+      dryRun: true
+    });
+    checkinData.value = data;
+    router.push(`/redeem/${data.user.userId}`);
+  } catch (e: any) {
+    parseError(e);
+  } finally {
+    loading.value = false;
+  }
+};
+
+const confirmRedeem = async (result: CheckinSearchResult) => {
   const displayName = result.user?.fursonaName || result.name;
   
   if (checkinType.value === 'entry') {
@@ -314,7 +334,8 @@ const handleBack = () => {
             :status="res.hasCheckedIn ? 'CHECKED-IN' : 'PENDING'"
             :statusVariant="res.hasCheckedIn ? 'success' : 'warning'"
             :has-gadgets="res.hasGadgets || (res.user?.sponsorship && res.user.sponsorship !== 'NONE')"
-            @click="confirmRedeem(res)"
+            @redeem="confirmRedeem(res)"
+            @info="previewResult(res)"
           />
         </div>
         <div v-else-if="!loading" class="search-status">No results found</div>
